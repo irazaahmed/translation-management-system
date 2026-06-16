@@ -123,7 +123,7 @@ export default async function Dashboard() {
       <div className="mb-4 sm:mb-6 lg:mb-8 overflow-visible">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 overflow-visible">
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white transition-colors duration-200 truncate">Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gradient truncate">Dashboard</h1>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-200">
               Overview of language meeting tracking status
             </p>
@@ -133,7 +133,7 @@ export default async function Dashboard() {
             <StaffOnly>
               <Link
                 href="/languages/new"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 sm:px-4 lg:px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 whitespace-nowrap"
+                className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 sm:px-4 lg:px-5 py-2 text-sm font-medium text-white shadow-sm hover:from-blue-700 hover:to-indigo-700 whitespace-nowrap"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -144,7 +144,7 @@ export default async function Dashboard() {
               </Link>
               <Link
                 href="/meetings/new"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 sm:px-4 lg:px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors duration-200 whitespace-nowrap"
+                className="btn-press inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 sm:px-4 lg:px-5 py-2 text-sm font-medium text-white shadow-sm hover:from-emerald-700 hover:to-teal-700 whitespace-nowrap"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -200,6 +200,7 @@ export default async function Dashboard() {
           <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <SummaryCard
               title="Total Languages"
+              index={1}
               value={displayStats.totalLanguages}
               color="emerald"
               icon={
@@ -212,6 +213,7 @@ export default async function Dashboard() {
 
             <SummaryCard
               title="In Progress"
+              index={2}
               value={displayStats.totalLanguages - displayStats.completed - displayStats.notStarted}
               color="blue"
               icon={
@@ -224,6 +226,7 @@ export default async function Dashboard() {
 
             <SummaryCard
               title="Completed"
+              index={3}
               value={displayStats.completed}
               color="green"
               icon={
@@ -236,6 +239,7 @@ export default async function Dashboard() {
 
             <SummaryCard
               title="Not Started"
+              index={4}
               value={displayStats.notStarted}
               color="gray"
               icon={
@@ -248,6 +252,7 @@ export default async function Dashboard() {
 
             <SummaryCard
               title="Meetings This Week"
+              index={5}
               value={displayStats.meetingsThisWeek}
               color="blue"
               icon={

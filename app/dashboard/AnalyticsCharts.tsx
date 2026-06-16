@@ -14,7 +14,7 @@ function BarChart({ title, rows }: { title: string; rows: BarRow[] }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 transition-colors duration-200">
+    <div className="card-hover animate-fade-in-up rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
       {total === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500">No data yet.</p>

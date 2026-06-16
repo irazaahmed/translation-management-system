@@ -11,13 +11,17 @@ export default async function LoginPage({
   const { redirect } = await searchParams;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 transition-colors duration-200">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-900 px-4 transition-colors duration-200">
+      {/* Decorative gradient blobs */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-emerald-300/30 dark:bg-emerald-700/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-blue-300/30 dark:bg-blue-700/20 blur-3xl" />
+
+      <div className="relative w-full max-w-sm animate-scale-in">
         <div className="flex flex-col items-center mb-8">
           <img
             src="/MyLogoYellow.jpeg"
             alt="Logo"
-            className="h-14 w-14 object-cover rounded-full mb-4"
+            className="h-14 w-14 object-cover rounded-full mb-4 shadow-lg ring-2 ring-white/50 dark:ring-gray-700"
           />
           <h1 className="text-xl font-bold text-gray-900 dark:text-white text-center">
             Quranic Translation

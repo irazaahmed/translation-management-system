@@ -114,7 +114,7 @@ export default async function SearchPage({
               <Link
                 key={lang.id}
                 href={`/languages/${lang.id}`}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all duration-200"
+                className="card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 hover:border-emerald-300 dark:hover:border-emerald-700"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -148,7 +148,7 @@ export default async function SearchPage({
               <Link
                 key={meeting.id}
                 href={language ? `/languages/${language.id}` : "#"}
-                className="block rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md transition-all duration-200"
+                className="card-hover block rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 hover:border-emerald-300 dark:hover:border-emerald-700"
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">

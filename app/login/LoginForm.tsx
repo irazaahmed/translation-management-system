@@ -57,7 +57,7 @@ export default function LoginForm({ redirectTo }: { redirectTo: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-200"
+        className="btn-press w-full rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {isPending ? "Signing in..." : "Sign in"}
       </button>

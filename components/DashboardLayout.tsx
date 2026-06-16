@@ -12,7 +12,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <Sidebar />
       <div className="lg:ml-64 flex flex-col min-h-screen overflow-visible">
         <Header />
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 w-full overflow-visible">{children}</main>
+        <main className="animate-fade-in flex-1 px-4 sm:px-6 lg:px-8 py-6 w-full overflow-visible">{children}</main>
         <Footer />
       </div>
     </div>

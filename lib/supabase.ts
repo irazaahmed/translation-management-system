@@ -607,13 +607,14 @@ export async function searchMeetings(query: string): Promise<MeetingWithLanguage
       (meeting, index, self) => index === self.findIndex((m) => m.id === meeting.id)
     );
 
-    // Enrich with language data
-    const meetingsWithLanguage: MeetingWithLanguage[] = await Promise.all(
-      uniqueMeetings.map(async (meeting) => ({
-        meeting,
-        language: await getLanguageById(meeting.language_id),
-      }))
-    );
+    // Enrich with language data (single batched query instead of N queries)
+    const languageMap = await getLanguagesByIds([
+      ...new Set(uniqueMeetings.map((m) => m.language_id)),
+    ]);
+    const meetingsWithLanguage: MeetingWithLanguage[] = uniqueMeetings.map((meeting) => ({
+      meeting,
+      language: languageMap.get(meeting.language_id) || null,
+    }));
 
     return meetingsWithLanguage;
   } catch (error) {
@@ -780,6 +781,45 @@ export async function getAllMeetingsWithLanguage(): Promise<MeetingWithLanguage[
 }
 
 /**
+ * Batch-fetch languages by IDs in a single query and return them as a Map.
+ * Replaces per-language getLanguageById() calls in reports (avoids N+1).
+ */
+export async function getLanguagesByIds(
+  ids: string[]
+): Promise<Map<string, LanguageWithProject>> {
+  const map = new Map<string, LanguageWithProject>();
+  if (ids.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("languages")
+    .select(`
+      *,
+      projects:project_id ( id, name, description, created_at )
+    `)
+    .in("id", ids);
+
+  if (error) throw error;
+
+  (data || []).forEach((row: any) => {
+    map.set(row.id, {
+      id: row.id,
+      country: row.country,
+      language: row.language,
+      responsible_person: row.responsible_person,
+      priority: row.priority,
+      work_status: row.work_status,
+      last_meeting_at: row.last_meeting_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      project_id: row.project_id,
+      project: row.projects ? (row.projects as Project) : undefined,
+    });
+  });
+
+  return map;
+}
+
+/**
  * Get weekly report data - meetings from the last 7 days grouped by language
  */
 export interface WeeklyReportData {
@@ -823,8 +863,9 @@ export async function getWeeklyReport(): Promise<WeeklyReportData> {
     // Fetch language details
     const languagesWithMeetings: WeeklyReportData["languagesWithMeetings"] = [];
 
+    const languageMap = await getLanguagesByIds([...meetingsByLanguage.keys()]);
     for (const [languageId, langMeetings] of meetingsByLanguage.entries()) {
-      const language = await getLanguageById(languageId);
+      const language = languageMap.get(languageId);
       if (language) {
         languagesWithMeetings.push({
           language,
@@ -897,8 +938,9 @@ export async function getMonthlyReport(): Promise<MonthlyReportData> {
     // Fetch language details
     const languagesWithMeetings: MonthlyReportData["languagesWithMeetings"] = [];
 
+    const languageMap = await getLanguagesByIds([...meetingsByLanguage.keys()]);
     for (const [languageId, langMeetings] of meetingsByLanguage.entries()) {
-      const language = await getLanguageById(languageId);
+      const language = languageMap.get(languageId);
       if (language) {
         languagesWithMeetings.push({
           language,
@@ -973,8 +1015,9 @@ export async function getDailyReport(selectedDate: Date = new Date()): Promise<D
     // Fetch language details
     const languagesWithMeetings: DailyReportData["languagesWithMeetings"] = [];
 
+    const languageMap = await getLanguagesByIds([...meetingsByLanguage.keys()]);
     for (const [languageId, langMeetings] of meetingsByLanguage.entries()) {
-      const language = await getLanguageById(languageId);
+      const language = languageMap.get(languageId);
       if (language) {
         languagesWithMeetings.push({
           language,
@@ -1053,8 +1096,9 @@ export async function getMeetingsByDateRange(
     // Fetch language details
     const languagesWithMeetings: DateRangeReportData["languagesWithMeetings"] = [];
 
+    const languageMap = await getLanguagesByIds([...meetingsByLanguage.keys()]);
     for (const [languageId, langMeetings] of meetingsByLanguage.entries()) {
-      const language = await getLanguageById(languageId);
+      const language = languageMap.get(languageId);
       if (language) {
         languagesWithMeetings.push({
           language,
