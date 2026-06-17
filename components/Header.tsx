@@ -71,11 +71,13 @@ export default function Header() {
             </svg>
           </button>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <img
-              src="/MyLogoYellow.jpeg"
-              alt="Logo"
-              className="h-6 w-6 sm:h-8 sm:w-8 object-cover rounded-full flex-shrink-0"
-            />
+            <span className="relative flex h-8 w-8 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-gray-200 dark:ring-gray-700">
+              <img
+                src="/MyLogoYellow.jpeg"
+                alt="Logo"
+                className="h-full w-full object-cover"
+              />
+            </span>
             <h1 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white truncate min-w-0 transition-colors duration-200">
               <span className="hidden sm:inline">Quranic Translation </span>Management System
             </h1>
