@@ -27,8 +27,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply });
   } catch (err) {
     console.error("Assistant route failed:", err);
-    // Temporary: surface the real detail so we can diagnose setup issues.
-    const detail = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: detail }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "";
+    let message = "Something went wrong. Please try again.";
+    if (msg.startsWith("GROQ_429")) {
+      message = "The assistant is busy right now (rate limit). Please try again in a few seconds.";
+    } else if (msg.startsWith("GROQ_") || msg === "GROQ_RETRY_EXHAUSTED") {
+      message = "The AI service returned an error. Please try again in a moment.";
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

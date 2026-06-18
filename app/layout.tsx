@@ -4,6 +4,8 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/Toast";
+import ChatWidget from "@/components/ChatWidget";
+import ScrollToTop from "@/components/ScrollToTop";
 import { getCurrentProfile } from "@/lib/auth";
 
 const geistSans = Geist({
@@ -44,7 +46,11 @@ export default async function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider profile={profile}>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              {children}
+              <ScrollToTop />
+              <ChatWidget />
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

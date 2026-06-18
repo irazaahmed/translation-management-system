@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { usePermissions } from "@/components/AuthProvider";
-
-interface Msg {
-  role: "user" | "assistant";
-  content: string;
-}
+import { useAssistantChat } from "@/components/useAssistantChat";
 
 const SUGGESTIONS = [
   "Sirat ul Jinan English ka kitna kaam ho chuka hai?",
@@ -16,41 +12,12 @@ const SUGGESTIONS = [
 
 export default function AssistantChat() {
   const { isLoggedIn } = usePermissions();
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { messages, input, setInput, loading, error, send } = useAssistantChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
-
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-
-    setError(null);
-    const next: Msg[] = [...messages, { role: "user", content: trimmed }];
-    setMessages(next);
-    setInput("");
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Request failed");
-      setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
