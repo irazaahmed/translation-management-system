@@ -15,22 +15,63 @@ export default function ChatWidget() {
   const { isLoggedIn } = usePermissions();
   const { messages, input, setInput, loading, error, send } = useAssistantChat();
   const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  // Visible viewport (shrinks when the mobile keyboard opens).
+  const [vv, setVv] = useState<{ height: number; offsetTop: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, loading, open]);
+  }, [messages, loading, open, vv]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Track the visual viewport so the panel sits above the keyboard on mobile.
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+    if (!open || !visualViewport) {
+      setVv(null);
+      return;
+    }
+    const update = () =>
+      setVv({ height: visualViewport.height, offsetTop: visualViewport.offsetTop });
+    update();
+    visualViewport.addEventListener("resize", update);
+    visualViewport.addEventListener("scroll", update);
+    return () => {
+      visualViewport.removeEventListener("resize", update);
+      visualViewport.removeEventListener("scroll", update);
+    };
+  }, [open]);
 
   // Don't show on the full assistant page or the login screen.
   if (pathname?.startsWith("/assistant") || pathname?.startsWith("/login")) return null;
+
+  const panelClassName = isMobile
+    ? "animate-scale-in fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl"
+    : "animate-scale-in fixed bottom-24 right-4 sm:right-6 z-50 flex h-[70vh] max-h-[32rem] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl";
+  const panelStyle: React.CSSProperties | undefined = isMobile
+    ? {
+        left: 8,
+        right: 8,
+        top: (vv?.offsetTop ?? 0) + 8,
+        height: (vv?.height ?? (typeof window !== "undefined" ? window.innerHeight : 600)) - 16,
+      }
+    : undefined;
 
   return (
     <div className="no-print">
       {/* Panel */}
       {open && (
-        <div className="animate-scale-in fixed bottom-24 right-4 sm:right-6 z-50 flex h-[70vh] max-h-[32rem] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl">
+        <div className={panelClassName} style={panelStyle}>
           {/* Header */}
           <div className="animate-gradient flex items-center justify-between bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 px-4 py-3 text-white">
             <div className="flex items-center gap-2">
@@ -136,7 +177,8 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* Launcher button */}
+      {/* Launcher button — hidden when the full-screen mobile panel is open. */}
+      {!(open && isMobile) && (
       <button
         onClick={() => setOpen((o) => !o)}
         className="btn-press fixed bottom-5 right-4 sm:right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 text-white shadow-lg"
@@ -157,6 +199,7 @@ export default function ChatWidget() {
           )}
         </span>
       </button>
+      )}
     </div>
   );
 }
