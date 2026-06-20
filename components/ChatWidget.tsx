@@ -199,26 +199,36 @@ export default function ChatWidget() {
 
       {/* Launcher button — hidden when the full-screen mobile panel is open. */}
       {!(open && isMobile) && (
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="gradient-ring gloss btn-press float-3d fixed bottom-5 right-4 sm:right-6 z-50 flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 text-white shadow-xl ring-1 ring-white/30"
-        aria-label={open ? "Close assistant" : "Open assistant"}
-      >
+      <div className="float-soft fixed bottom-5 right-4 sm:right-6 z-50">
+        {/* Spinning gradient glow halo sitting behind the button */}
         {!open && (
-          <span className="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping" />
+          <span
+            aria-hidden
+            className="halo-spin pointer-events-none absolute -inset-1.5 rounded-full"
+          />
         )}
-        <span className="relative">
-          {open ? (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" />
-            </svg>
-          )}
-        </span>
-      </button>
+        {/* Soft pulse ping */}
+        {!open && (
+          <span className="pointer-events-none absolute inset-0 rounded-full bg-emerald-400/40 animate-ping" />
+        )}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="gloss btn-press relative flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 text-white shadow-xl ring-1 ring-white/40"
+          aria-label={open ? "Close assistant" : "Open assistant"}
+        >
+          <span className="relative z-[2]">
+            {open ? (
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" />
+              </svg>
+            )}
+          </span>
+        </button>
+      </div>
       )}
     </div>
   );
