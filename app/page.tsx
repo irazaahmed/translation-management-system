@@ -273,6 +273,7 @@ export default async function Dashboard() {
             <SummaryCard
               title="Meetings This Week"
               index={5}
+              className="col-span-2 lg:col-span-1"
               value={displayStats.meetingsThisWeek}
               color="blue"
               icon={

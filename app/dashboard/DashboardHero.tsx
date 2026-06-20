@@ -33,7 +33,7 @@ export default function DashboardHero({
       scale={1.01}
       className="animate-pop-3d mb-4 sm:mb-6 rounded-2xl shadow-lg"
     >
-      <div className="animate-gradient relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 p-5 sm:p-7 text-white">
+      <div className="animate-gradient relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 p-4 sm:p-7 text-white">
         {/* Decorative floating circles */}
         <div className="float-3d pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
         <div
@@ -42,9 +42,9 @@ export default function DashboardHero({
         />
 
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <LiveClock longDate showIcon className="text-sm text-white/80" />
-          <h2 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold">
+        <div className="min-w-0 text-center sm:text-left">
+          <LiveClock longDate showIcon className="justify-center sm:justify-start text-xs sm:text-sm text-white/80" />
+          <h2 className="mt-1 text-lg sm:text-2xl lg:text-3xl font-bold">
             {greeting}
             {name ? (
               <span className="capitalize">, {name}</span>
@@ -52,7 +52,7 @@ export default function DashboardHero({
               <span> 👋</span>
             )}
           </h2>
-          <p className="mt-1 text-sm text-white/85">
+          <p className="mt-1 text-xs sm:text-sm text-white/85">
             {needsAttention > 0
               ? `${needsAttention} language${needsAttention === 1 ? "" : "s"} need follow-up attention.`
               : "Everything's on track. Great work! 🎉"}
@@ -60,17 +60,17 @@ export default function DashboardHero({
         </div>
 
         {/* Quick highlight chips */}
-        <div className="flex flex-shrink-0 gap-3">
+        <div className="flex flex-shrink-0 gap-3 justify-center sm:justify-start">
           <Link
             href="/schedule"
-            className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm text-center transition-colors hover:bg-white/25"
+            className="flex-1 sm:flex-none rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm text-center transition-colors hover:bg-white/25"
           >
             <div className="text-2xl font-bold tabular-nums">{meetingsThisWeek}</div>
             <div className="text-[11px] uppercase tracking-wide text-white/80">This week</div>
           </Link>
           <Link
             href="#upcoming"
-            className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm text-center transition-colors hover:bg-white/25"
+            className="flex-1 sm:flex-none rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm text-center transition-colors hover:bg-white/25"
           >
             <div className="text-2xl font-bold tabular-nums">{upcoming}</div>
             <div className="text-[11px] uppercase tracking-wide text-white/80">Upcoming</div>

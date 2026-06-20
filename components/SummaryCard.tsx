@@ -12,6 +12,8 @@ interface SummaryCardProps {
   color?: "emerald" | "blue" | "amber" | "purple" | "rose" | "gray" | "green";
   /** 1-6, used to stagger the entrance animation */
   index?: number;
+  /** Extra classes for the outer wrapper (e.g. grid column spans). */
+  className?: string;
 }
 
 const colorVariants = {
@@ -52,11 +54,12 @@ export default function SummaryCard({
   trend,
   color = "emerald",
   index = 1,
+  className = "",
 }: SummaryCardProps) {
   const variant = colorVariants[color];
 
   return (
-    <Tilt className={`animate-pop-3d stagger-${index} rounded-lg sm:rounded-xl`}>
+    <Tilt className={`animate-pop-3d stagger-${index} rounded-lg sm:rounded-xl ${className}`}>
       <div
         className="gloss group h-full rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 sm:p-4 shadow-sm transition-shadow duration-200 hover:shadow-xl"
       >
