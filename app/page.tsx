@@ -217,10 +217,11 @@ export default async function Dashboard() {
           />
 
           {/* Stats Grid */}
-          <div className="mt-4 sm:mt-6 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="mt-4 sm:mt-6 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-6 xl:grid-cols-5">
             <SummaryCard
               title="Total Languages"
               index={1}
+              className="lg:col-span-2 xl:col-span-1"
               value={displayStats.totalLanguages}
               color="emerald"
               icon={
@@ -234,6 +235,7 @@ export default async function Dashboard() {
             <SummaryCard
               title="In Progress"
               index={2}
+              className="lg:col-span-2 xl:col-span-1"
               value={displayStats.totalLanguages - displayStats.completed - displayStats.notStarted}
               color="blue"
               icon={
@@ -247,6 +249,7 @@ export default async function Dashboard() {
             <SummaryCard
               title="Completed"
               index={3}
+              className="lg:col-span-2 xl:col-span-1"
               value={displayStats.completed}
               color="green"
               icon={
@@ -260,6 +263,7 @@ export default async function Dashboard() {
             <SummaryCard
               title="Not Started"
               index={4}
+              className="lg:col-span-3 xl:col-span-1"
               value={displayStats.notStarted}
               color="gray"
               icon={
@@ -273,7 +277,7 @@ export default async function Dashboard() {
             <SummaryCard
               title="Meetings This Week"
               index={5}
-              className="col-span-2 lg:col-span-1"
+              className="col-span-2 lg:col-span-3 xl:col-span-1"
               value={displayStats.meetingsThisWeek}
               color="blue"
               icon={
@@ -290,10 +294,10 @@ export default async function Dashboard() {
             <TodaysSchedule items={todaysSchedule} todayName={todayName} />
           </div>
 
-          {/* Main Dashboard Grid - optimized for small laptops */}
-          <div className="mt-4 sm:mt-6 grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
-            {/* Recent Meetings - Left side (2 columns on lg, full on md) */}
-            <div className="lg:col-span-2">
+          {/* Main Dashboard Grid - stacks until xl so it isn't cramped on ~1024px laptops */}
+          <div className="mt-4 sm:mt-6 grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-3">
+            {/* Recent Meetings - wider column on xl, full width below */}
+            <div className="xl:col-span-2">
               <RecentMeetings meetings={meetingsWithLanguage} />
             </div>
 
@@ -304,7 +308,7 @@ export default async function Dashboard() {
           </div>
 
           {/* Upcoming Meetings + Urgent Follow-ups */}
-          <div id="upcoming" className="scroll-mt-20 mt-4 sm:mt-6 grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+          <div id="upcoming" className="scroll-mt-20 mt-4 sm:mt-6 grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
             <UpcomingMeetings meetings={upcomingMeetings} />
             <UrgentFollowUps languages={urgentLanguages} />
           </div>
