@@ -9,7 +9,10 @@ import {
   getCachedProjectStats,
   getCachedMeetingsCountThisWeek,
   getCachedUpcomingMeetings,
+  getCachedScheduleData,
 } from "@/lib/cachedData";
+import { computeScheduleStatus, weekdayName } from "@/lib/schedule";
+import TodaysSchedule, { type TodaysScheduleItem } from "./dashboard/TodaysSchedule";
 import RecentMeetings from "./dashboard/RecentMeetings";
 import LanguagesNeedingAttention from "./dashboard/LanguagesNeedingAttention";
 import UrgentFollowUps from "./dashboard/UrgentFollowUps";
@@ -75,12 +78,14 @@ export default async function Dashboard() {
   let urgentLanguages: Language[] = [];
   let projectStats: Awaited<ReturnType<typeof getCachedProjectStats>> = [];
   let upcomingMeetings: Awaited<ReturnType<typeof getCachedUpcomingMeetings>> = [];
+  let todaysSchedule: TodaysScheduleItem[] = [];
+  const todayName = weekdayName(new Date());
   let stats: Awaited<ReturnType<typeof getDashboardStats>> | null = null;
   let error: string | null = null;
 
   try {
     // Fetch all data in parallel using cached functions
-    const [languagesData, recentMeetingsData, staleData, urgentData, projectStatsData, meetingsCount, upcomingData] = await Promise.all([
+    const [languagesData, recentMeetingsData, staleData, urgentData, projectStatsData, meetingsCount, upcomingData, scheduleData] = await Promise.all([
       getCachedLanguages(),
       getCachedRecentMeetings(5),
       getCachedStaleLanguages(14),
@@ -88,6 +93,7 @@ export default async function Dashboard() {
       getCachedProjectStats(),
       getCachedMeetingsCountThisWeek(),
       getCachedUpcomingMeetings(8),
+      getCachedScheduleData(),
     ]);
 
     languages = languagesData;
@@ -96,6 +102,12 @@ export default async function Dashboard() {
     urgentLanguages = urgentData;
     projectStats = projectStatsData;
     upcomingMeetings = upcomingData;
+
+    // Languages whose recurring weekly meeting falls on today's weekday.
+    const now = new Date();
+    todaysSchedule = scheduleData
+      .filter((e) => e.assigned_day === todayName)
+      .map((e) => ({ entry: e, status: computeScheduleStatus(e.assigned_day, e.lastMeeting, now) }));
 
     // Use the accurate count from dedicated query
     const meetingsThisWeek = meetingsCount;
@@ -204,8 +216,13 @@ export default async function Dashboard() {
             meetingsThisWeek={displayStats.meetingsThisWeek}
           />
 
+          {/* Today's scheduled meetings (rolls over by weekday) */}
+          <div className="mt-4 sm:mt-6">
+            <TodaysSchedule items={todaysSchedule} todayName={todayName} />
+          </div>
+
           {/* Stats Grid */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="mt-4 sm:mt-6 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <SummaryCard
               title="Total Languages"
               index={1}

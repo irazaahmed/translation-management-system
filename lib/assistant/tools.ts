@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/auth";
 import { createMeeting, upsertStageProgress } from "@/lib/mutations";
 import { getCachedLanguageProgress } from "@/lib/progressData";
+import { getCachedScheduleData } from "@/lib/cachedData";
 import { getLatestMeetingByLanguage, searchLanguages } from "@/lib/supabase";
 import {
   ALL_STAGE_KEYS,
@@ -13,6 +14,7 @@ import {
   getStageMeta,
   type StageKey,
 } from "@/lib/progress";
+import { WEEKDAYS, computeScheduleStatus, weekdayName } from "@/lib/schedule";
 
 /**
  * Tool layer for the AI assistant. The model decides which of these to call;
@@ -70,6 +72,22 @@ export const functionDeclarations = [
         },
       },
       required: ["language_id"],
+    },
+  },
+  {
+    name: "get_schedule",
+    description:
+      "Get the recurring WEEKLY meeting schedule — which languages are assigned to meet on each weekday, and whether each has been met this week, is due today, or is overdue. Use this for questions about who/what meetings are planned, e.g. 'who do I have a meeting with today', 'aaj kis se meeting hai', 'Monday ko kin se meeting hai', 'is hafte ka schedule'. Without a day it returns TODAY's scheduled meetings. This is NOT the same as a past meeting — for the last recorded meeting of a specific language use get_last_meeting.",
+    parameters: {
+      type: "object",
+      properties: {
+        day: {
+          type: "string",
+          description:
+            "Optional. A weekday name (Monday, Tuesday, … Sunday) to get that day's scheduled meetings, or 'week' for the whole week grouped by day. Omit to get today's schedule.",
+        },
+      },
+      required: [],
     },
   },
   {
@@ -222,6 +240,52 @@ async function getLastMeeting(args: ToolArgs) {
   };
 }
 
+async function getSchedule(args: ToolArgs) {
+  const today = new Date();
+  const todayName = weekdayName(today);
+
+  const dayArg = str(args.day);
+  const wantWeek = !!dayArg && /^(all|week|full|whole)/i.test(dayArg);
+  const matchedDay = dayArg
+    ? WEEKDAYS.find((d) => d.toLowerCase() === dayArg.toLowerCase()) ?? null
+    : null;
+  // No day -> today; an unrecognised, non-"week" word also falls back to today.
+  const filterDay = wantWeek ? null : matchedDay ?? todayName;
+
+  const entries = await getCachedScheduleData();
+  const withStatus = entries.map((e) => ({
+    e,
+    status: computeScheduleStatus(e.assigned_day, e.lastMeeting, today),
+  }));
+
+  const fmt = (it: (typeof withStatus)[number]) => ({
+    language: it.e.language,
+    country: it.e.country,
+    project: it.e.projectName,
+    responsible_person: it.e.responsible_person,
+    assigned_day: it.e.assigned_day,
+    status: it.status.label, // "Due today" | "Met this week" | "N days overdue" | ...
+    last_meeting: it.e.lastMeeting,
+  });
+
+  if (wantWeek) {
+    const week: Record<string, ReturnType<typeof fmt>[]> = {};
+    for (const day of WEEKDAYS) {
+      week[day] = withStatus.filter((it) => it.e.assigned_day === day).map(fmt);
+    }
+    return { today: todayName, week };
+  }
+
+  const meetings = withStatus.filter((it) => it.e.assigned_day === filterDay).map(fmt);
+  return {
+    day: filterDay,
+    is_today: filterDay === todayName,
+    today: todayName,
+    count: meetings.length,
+    meetings,
+  };
+}
+
 async function updateStageProgress(args: ToolArgs) {
   const languageId = str(args.language_id);
   const stage = str(args.stage) as StageKey | undefined;
@@ -314,6 +378,8 @@ export async function executeTool(name: string, args: ToolArgs): Promise<unknown
         return await getLanguageProgress(args);
       case "get_last_meeting":
         return await getLastMeeting(args);
+      case "get_schedule":
+        return await getSchedule(args);
       case "update_stage_progress":
         return await updateStageProgress(args);
       case "log_meeting":

@@ -54,7 +54,8 @@ HOW TO ACT:
 
 READING — answering questions NEVER needs login. Just call the tool and reply:
 - "how much work / what stage / kitna kaam / kahan tak" -> get_language_progress
-- "last meeting / aakhri meeting kab/kya hui" -> get_last_meeting
+- "last/previous meeting of a named language / aakhri meeting kab/kya hui" -> get_last_meeting
+- "who do I meet today / aaj kis se meeting hai / aaj ki meetings / Monday ko kin se meeting / is hafte ka schedule / kal kis se" -> get_schedule (omit day for today; pass a weekday name for another day; pass "week" for the whole week). This is the planned recurring schedule — do NOT answer schedule questions with get_last_meeting.
 Do NOT ask the user to log in for information questions. Never refuse a question because of login.
 
 WRITING — only these two change data and require logged-in staff:
