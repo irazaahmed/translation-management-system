@@ -23,42 +23,61 @@ function fmt(d: string | null): string {
 
 type Entry = { row: EtItemRow; info: ReminderInfo };
 
-function Row({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
+function Card({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
   const days = daysSince(row.current.since);
+  const left =
+    info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d late` : info.daysLeft === 0 ? "Due today" : `${info.daysLeft}d left`;
   return (
-    <li className="py-2.5">
-      <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
-        <span className={`flex-shrink-0 w-20 text-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
-          {info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d late` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d left`}
+    <div className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <Link href={`/et/items/${row.id}`} className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
+        </Link>
+        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>{left}</span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
+          {row.current.stage ? `${row.current.stage} · ${row.current.label}` : row.current.label}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
-        <span className="hidden md:inline text-xs text-gray-400 dark:text-gray-500">{typeLabel(row.type)}</span>
-        <span className={`hidden sm:inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
-          {row.current.stage ?? row.current.label}
-        </span>
-        <span className="hidden sm:block flex-shrink-0 w-24 truncate text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
         {days != null && (
-          <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${days > 30 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{days}d</span>
+          <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${days > 30 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{days}d here</span>
         )}
-        <span className="hidden lg:block flex-shrink-0 w-24 text-right text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
-      </Link>
+      </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Holder</p>
+          <p className="font-medium text-gray-900 dark:text-white truncate">{row.current.holder || "—"}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Progress</p>
+          <p className="font-medium text-gray-900 dark:text-white tabular-nums">{row.current.doneCount}/{row.current.totalCount}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Delivery</p>
+          <p className="font-medium text-gray-900 dark:text-white">{fmt(info.delivery)}</p>
+        </div>
+      </div>
+
       {row.advance && (
-        <div className="mt-1.5 pl-[5.5rem]">
+        <div className="mt-2 border-t border-gray-100 dark:border-gray-800 pt-2">
           <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
         </div>
       )}
-    </li>
+    </div>
   );
 }
 
 function Section({ title, entries, tone, peopleNames }: { title: string; entries: Entry[]; tone: string; peopleNames: string[] }) {
   if (entries.length === 0) return null;
   return (
-    <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-      <h2 className={`text-sm font-semibold ${tone}`}>{title} <span className="text-gray-400 dark:text-gray-500">({entries.length})</span></h2>
-      <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
-        {entries.map((e) => <Row key={e.row.id} {...e} peopleNames={peopleNames} />)}
-      </ul>
+    <div>
+      <h2 className={`mb-2 text-sm font-semibold ${tone}`}>{title} <span className="text-gray-400 dark:text-gray-500">({entries.length})</span></h2>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {entries.map((e) => <Card key={e.row.id} {...e} peopleNames={peopleNames} />)}
+      </div>
     </div>
   );
 }
@@ -108,39 +127,35 @@ export default async function EtRemindersPage() {
 
       {error ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{error}</div>
+      ) : entries.length === 0 && unassigned.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-10 text-center text-gray-500 dark:text-gray-400">
+          No active weekly documents. Add a wsb / fsp / wbl item with a date in its title like “(20-07-26)”.
+        </div>
       ) : (
-        <div className="space-y-4">
-          {entries.length === 0 && unassigned.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-10 text-center text-gray-500 dark:text-gray-400">
-              No active weekly documents. Add a wsb / fsp / wbl item with a date in its title like “(20-07-26)”.
-            </div>
-          ) : (
-            <>
-              <Section title="⚠ Overdue" entries={overdue} tone="text-red-600 dark:text-red-400" peopleNames={peopleNames} />
-              <Section title="Due this week" entries={week} tone="text-amber-600 dark:text-amber-400" peopleNames={peopleNames} />
-              <Section title="Upcoming" entries={upcoming} tone="text-gray-700 dark:text-gray-300" peopleNames={peopleNames} />
+        <div className="space-y-6">
+          <Section title="⚠ Overdue" entries={overdue} tone="text-red-600 dark:text-red-400" peopleNames={peopleNames} />
+          <Section title="Due this week" entries={week} tone="text-amber-600 dark:text-amber-400" peopleNames={peopleNames} />
+          <Section title="Upcoming" entries={upcoming} tone="text-gray-700 dark:text-gray-300" peopleNames={peopleNames} />
 
-              {unassigned.length > 0 && (
-                <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">⚠ Unassigned weekly tasks <span className="text-gray-400 dark:text-gray-500">({unassigned.length})</span></h2>
-                  <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
-                    {unassigned.map((row) => (
-                      <li key={row.id} className="py-2">
-                        <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
-                          <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
-                          <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{typeLabel(row.type)}</span>
-                        </Link>
-                        {row.advance && (
-                          <div className="mt-1.5">
-                            <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
+          {unassigned.length > 0 && (
+            <div>
+              <h2 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">⚠ Unassigned weekly tasks <span className="text-gray-400 dark:text-gray-500">({unassigned.length})</span></h2>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {unassigned.map((row) => (
+                  <div key={row.id} className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+                    <Link href={`/et/items/${row.id}`}>
+                      <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
+                    </Link>
+                    {row.advance && (
+                      <div className="mt-2 border-t border-gray-100 dark:border-gray-800 pt-2">
+                        <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
