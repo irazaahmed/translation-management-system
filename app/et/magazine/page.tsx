@@ -1,7 +1,8 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
+import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
 import { STAGES, daysSince, isMagazineType, stageBadgeClasses } from "@/lib/et";
+import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,54 @@ function fmt(d: string | null): string {
   return dt.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function Article({ row, peopleNames }: { row: EtItemRow; peopleNames: string[] }) {
+  const d = daysSince(row.current.since);
+  return (
+    <div className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <Link href={`/et/items/${row.id}`} className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
+        </Link>
+        <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
+          {row.current.stage ? `${row.current.stage} · ${row.current.label}` : row.current.label}
+        </span>
+      </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Holder</p>
+          <p className="font-medium text-gray-900 dark:text-white truncate">{row.current.holder || "—"}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Progress</p>
+          <p className="font-medium text-gray-900 dark:text-white tabular-nums">{row.current.doneCount}/{row.current.totalCount}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 dark:text-gray-400">Since</p>
+          <p className="font-medium text-gray-900 dark:text-white">
+            {fmt(row.current.since)}
+            {d != null && <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ${d > 30 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{d}d</span>}
+          </p>
+        </div>
+      </div>
+
+      {row.advance && (
+        <div className="mt-2 border-t border-gray-100 dark:border-gray-800 pt-2">
+          <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default async function EtMagazinePage() {
   let rows: EtItemRow[] = [];
+  let peopleNames: string[] = [];
   let error: string | null = null;
   try {
-    rows = await getCachedEtItemRows();
+    const [r, people] = await Promise.all([getCachedEtItemRows(), getCachedEtPeople()]);
+    rows = r;
+    peopleNames = people.map((p) => p.name);
   } catch (err) {
     console.error("Failed to fetch ET items:", err);
     error = "Failed to load. Have you run the migrations and import yet?";
@@ -52,50 +96,15 @@ export default async function EtMagazinePage() {
         </div>
       ) : (
         <>
-          {/* Mini stage legend */}
           <div className="mb-3 flex flex-wrap gap-1.5">
             {STAGES.map((s) => (
               <span key={s.code} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(s.code)}`} title={s.name}>{s.code}</span>
             ))}
           </div>
-
-          <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  {["Article", "Current Step", "Holder", "Progress", "Since"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {articles.map((row) => {
-                  const d = daysSince(row.current.since);
-                  return (
-                    <tr key={row.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-4 py-3 max-w-[360px]">
-                        <Link href={`/et/items/${row.id}`} className="block truncate text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400" title={row.title}>
-                          {row.title}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
-                          {row.current.stage ? `${row.current.stage} · ${row.current.label}` : row.current.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{row.current.holder || "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm tabular-nums text-gray-600 dark:text-gray-400">{row.current.doneCount}/{row.current.totalCount}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {fmt(row.current.since)}
-                        {d !== null && d > 30 && (
-                          <span className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400">{d}d</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {articles.map((row) => (
+              <Article key={row.id} row={row} peopleNames={peopleNames} />
+            ))}
           </div>
         </>
       )}

@@ -1,7 +1,8 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
+import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
 import {
+  daysSince,
   isWeeklyType,
   reminderInfo,
   stageBadgeClasses,
@@ -9,6 +10,7 @@ import {
   urgencyClasses,
   type ReminderInfo,
 } from "@/lib/et";
+import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,8 @@ function fmt(d: string | null): string {
 
 type Entry = { row: EtItemRow; info: ReminderInfo };
 
-function Row({ row, info }: Entry) {
+function Row({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
+  const days = daysSince(row.current.since);
   return (
     <li className="py-2.5">
       <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
@@ -34,19 +37,27 @@ function Row({ row, info }: Entry) {
           {row.current.stage ?? row.current.label}
         </span>
         <span className="hidden sm:block flex-shrink-0 w-24 truncate text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
-        <span className="flex-shrink-0 w-28 text-right text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
+        {days != null && (
+          <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${days > 30 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{days}d</span>
+        )}
+        <span className="hidden lg:block flex-shrink-0 w-24 text-right text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
       </Link>
+      {row.advance && (
+        <div className="mt-1.5 pl-[5.5rem]">
+          <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
+        </div>
+      )}
     </li>
   );
 }
 
-function Section({ title, entries, tone }: { title: string; entries: Entry[]; tone: string }) {
+function Section({ title, entries, tone, peopleNames }: { title: string; entries: Entry[]; tone: string; peopleNames: string[] }) {
   if (entries.length === 0) return null;
   return (
     <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
       <h2 className={`text-sm font-semibold ${tone}`}>{title} <span className="text-gray-400 dark:text-gray-500">({entries.length})</span></h2>
       <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
-        {entries.map((e) => <Row key={e.row.id} {...e} />)}
+        {entries.map((e) => <Row key={e.row.id} {...e} peopleNames={peopleNames} />)}
       </ul>
     </div>
   );
@@ -54,9 +65,12 @@ function Section({ title, entries, tone }: { title: string; entries: Entry[]; to
 
 export default async function EtRemindersPage() {
   let rows: EtItemRow[] = [];
+  let peopleNames: string[] = [];
   let error: string | null = null;
   try {
-    rows = await getCachedEtItemRows();
+    const [r, people] = await Promise.all([getCachedEtItemRows(), getCachedEtPeople()]);
+    rows = r;
+    peopleNames = people.map((p) => p.name);
   } catch (err) {
     console.error("Failed to fetch ET items:", err);
     error = "Failed to load. Have you run the migrations and import yet?";
@@ -102,9 +116,9 @@ export default async function EtRemindersPage() {
             </div>
           ) : (
             <>
-              <Section title="⚠ Overdue" entries={overdue} tone="text-red-600 dark:text-red-400" />
-              <Section title="Due this week" entries={week} tone="text-amber-600 dark:text-amber-400" />
-              <Section title="Upcoming" entries={upcoming} tone="text-gray-700 dark:text-gray-300" />
+              <Section title="⚠ Overdue" entries={overdue} tone="text-red-600 dark:text-red-400" peopleNames={peopleNames} />
+              <Section title="Due this week" entries={week} tone="text-amber-600 dark:text-amber-400" peopleNames={peopleNames} />
+              <Section title="Upcoming" entries={upcoming} tone="text-gray-700 dark:text-gray-300" peopleNames={peopleNames} />
 
               {unassigned.length > 0 && (
                 <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
@@ -116,6 +130,11 @@ export default async function EtRemindersPage() {
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
                           <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{typeLabel(row.type)}</span>
                         </Link>
+                        {row.advance && (
+                          <div className="mt-1.5">
+                            <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>

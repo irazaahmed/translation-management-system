@@ -8,7 +8,9 @@ import {
   EtStage,
   EtPerson,
   computeCurrentStep,
+  computeAdvance,
   type CurrentStep,
+  type ItemAdvance,
   type ItemStatus,
 } from "@/lib/et";
 
@@ -26,6 +28,8 @@ export interface EtItemRow extends EtItem {
   current: CurrentStep;
   /** Lifecycle status derived live from the stages (overrides the stored field). */
   derivedStatus: ItemStatus;
+  /** Quick "advance to next step" data (null when completed). */
+  advance: ItemAdvance | null;
 }
 
 function sortStages(stages: EtStage[]): EtStage[] {
@@ -57,7 +61,8 @@ export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
       : current.unassigned
         ? "pending_assignment"
         : "in_progress";
-    return { ...(item as EtItem), current, derivedStatus };
+    const advance = computeAdvance(stages, item.final_email_date);
+    return { ...(item as EtItem), current, derivedStatus, advance };
   });
 });
 

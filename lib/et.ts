@@ -266,6 +266,47 @@ export function deriveStatus(stages: EtStage[], finalEmailDate?: string | null):
   return "in_progress";
 }
 
+/** Data for the quick "advance to next step" control. Null when nothing to do. */
+export interface ItemAdvance {
+  stage: StageCode;
+  stageName: string;
+  holder: string | null;
+  days: number | null;
+  /** True when the current stage is sent but not yet returned (in progress). */
+  inProgress: boolean;
+  nextStage: StageCode | null;
+  nextStageName: string | null;
+}
+
+/** Work out which stage to act on next (and the one after it) for quick advance. */
+export function computeAdvance(
+  stages: EtStage[],
+  finalEmailDate?: string | null,
+  now: Date = new Date()
+): ItemAdvance | null {
+  const current = computeCurrentStep(stages, finalEmailDate);
+  if (current.completed) return null;
+
+  const applicable = [...stages].filter((s) => !isStageSkipped(s)).sort((a, b) => a.seq - b.seq);
+  const actStage = current.stage ?? applicable[0]?.stage ?? null;
+  if (!actStage) return null;
+
+  const actRow = stages.find((s) => s.stage === actStage) ?? null;
+  const inProgress = !!(actRow?.sent_date && !actRow?.received_back_date);
+  const actSeq = STAGE_BY_CODE[actStage].seq;
+  const next = applicable.find((s) => s.seq > actSeq && !s.received_back_date) ?? null;
+
+  return {
+    stage: actStage,
+    stageName: stageName(actStage),
+    holder: current.holder,
+    days: daysSince(current.since, now),
+    inProgress,
+    nextStage: next?.stage ?? null,
+    nextStageName: next ? stageName(next.stage) : null,
+  };
+}
+
 /** Build the 8 blank stage rows for a brand-new item (no item_id yet). */
 export function blankStages(): Array<{
   stage: StageCode;

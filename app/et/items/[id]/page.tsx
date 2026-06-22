@@ -2,10 +2,10 @@ import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedEtItem, getCachedEtPeople } from "@/lib/etData";
-import { STAGE_BY_CODE, computeCurrentStep, daysSince, isStageSkipped, stageName, typeLabel } from "@/lib/et";
+import { computeAdvance, computeCurrentStep, daysSince, isStageSkipped, stageName, typeLabel } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
-import EtQuickAdvance, { type QuickAdvance } from "./EtQuickAdvance";
+import EtQuickAdvance from "./EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
 
@@ -38,28 +38,7 @@ export default async function EtItemDetailPage({ params }: Props) {
   const peopleNames = people.map((p) => p.name);
 
   // Quick-advance data: which stage to act on next, straight from the summary.
-  const firstApplicable = [...item.stages]
-    .filter((s) => !isStageSkipped(s))
-    .sort((a, b) => a.seq - b.seq)[0];
-  const actStage = current.stage ?? firstApplicable?.stage ?? null;
-  const actStageRow = actStage ? item.stages.find((s) => s.stage === actStage) ?? null : null;
-  const actInProgress = !!(actStageRow?.sent_date && !actStageRow?.received_back_date);
-  const actSeq = actStage ? STAGE_BY_CODE[actStage].seq : 0;
-  const nextStageRow = [...item.stages]
-    .filter((s) => !isStageSkipped(s) && s.seq > actSeq && !s.received_back_date)
-    .sort((a, b) => a.seq - b.seq)[0];
-  const quickAdvance: QuickAdvance | null =
-    !current.completed && actStage
-      ? {
-          stage: actStage,
-          stageName: stageName(actStage),
-          holder: current.holder,
-          days: sinceDays,
-          inProgress: actInProgress,
-          nextStage: nextStageRow?.stage ?? null,
-          nextStageName: nextStageRow ? stageName(nextStageRow.stage) : null,
-        }
-      : null;
+  const quickAdvance = computeAdvance(item.stages, item.final_email_date);
 
   // Movement timeline: stages that have actually been touched (assigned/sent),
   // in pipeline order — who had it, when it was sent and came back, how long.
