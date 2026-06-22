@@ -1,8 +1,8 @@
-# 📖 Quranic Translation Management System (QTMS)
+# 📖 Translation Management System (TMS)
 
-A modern web application that helps a translation team plan, track, and report the progress of **Quranic translation work across 25+ languages** and multiple translation projects — all from one clean, real‑time dashboard.
+A modern web application that helps a translation team plan, track, and report progress across two workspaces: **Quranic translation** (languages, meetings & weekly schedule) and **English translation** (an 8‑stage production pipeline for books, bayans & magazine articles) — all from one clean, real‑time dashboard.
 
-🌐 **Live App:** https://quranic-translation-management-syst.vercel.app
+🌐 **Live App:** https://tms-dawateislami.vercel.app
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
@@ -20,7 +20,7 @@ language has a responsible person, a project it belongs to, and a **weekly meeti
 progress is reviewed. Keeping all of that organised — who met this week, who was missed, what
 was discussed, and what comes next — quickly becomes hard to manage on paper or spreadsheets.
 
-**QTMS turns that whole process into a living, real‑time system:**
+**TMS turns that whole process into a living, real‑time system:**
 
 - Every language and its translation status in one place
 - A **weekly meeting schedule** that automatically tells you which meetings happened and which
@@ -106,7 +106,7 @@ while write access stays locked to authorised staff:
 
 ## 🗺️ Project Journey
 
-QTMS was built and improved in clear phases:
+TMS was built and improved in clear phases:
 
 - **Phase 1 — Core system:** projects, languages, meetings, dashboard & reports
 - **Phase 2 — Authentication & roles:** public view, staff editing, admin user management
