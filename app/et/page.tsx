@@ -4,6 +4,7 @@ import SummaryCard from "@/components/SummaryCard";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
 import {
   daysSince,
+  isWeeklyType,
   reminderInfo,
   stageBadgeClasses,
   urgencyClasses,
@@ -57,10 +58,12 @@ export default async function EtDashboardPage() {
       .map((r) => ({ id: r.id, title: r.title })),
   })).filter((g) => g.tasks.length > 0);
 
-  // Top "Weekly deliveries" attention list: any active task whose delivery is
-  // within 7 days, OR that has been sitting at the same step for more than
-  // STEP_ALERT_DAYS days. Soonest delivery first, then longest-held.
+  // Top "Weekly deliveries" attention list — WEEKLY tasks only (wbl/wsb/fsp):
+  // those whose delivery is within 7 days, OR that have been sitting at the same
+  // step for more than STEP_ALERT_DAYS days. Soonest delivery first, then
+  // longest-held.
   const attention = active
+    .filter((r) => isWeeklyType(r.type))
     .map((r) => ({ row: r, info: reminderInfo(r), held: daysSince(r.current.since) }))
     .filter(
       (x) =>
