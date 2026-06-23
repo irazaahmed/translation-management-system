@@ -10,8 +10,11 @@ import {
   stageBadgeClasses,
   urgencyClasses,
   typeLabel,
+  itemCategory,
+  CATEGORY_LABELS,
   HELD_ALERT_DAYS,
 } from "@/lib/et";
+import UnassignedEtTasks from "@/app/dashboard/UnassignedEtTasks";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +47,14 @@ export default async function EtDashboardPage() {
   const active = live.filter((r) => r.derivedStatus !== "completed");
   const completed = live.filter((r) => r.derivedStatus === "completed");
   const unassigned = live.filter((r) => r.derivedStatus === "pending_assignment");
+
+  // Tasks waiting for a person + date (weekly docs, magazine, anything) — shown
+  // as a separate alert so nothing stalls between people.
+  const unassignedTasks = unassigned.map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: CATEGORY_LABELS[itemCategory(r.type)],
+  }));
 
   // Weekly delivery reminders (wsb/fsp/wbl with an effective delivery date).
   const reminders = active
@@ -91,6 +102,9 @@ export default async function EtDashboardPage() {
             <SummaryCard title="Due ≤ 7 days" value={dueSoon.length} color="amber" index={4}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
           </div>
+
+          {/* Unassigned tasks — needs a person + date before work can start */}
+          <UnassignedEtTasks tasks={unassignedTasks} />
 
           <div className="mt-4 sm:mt-6">
             {/* Weekly deliveries (full width) */}

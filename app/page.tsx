@@ -20,9 +20,7 @@ import ProjectStatsCards from "./dashboard/ProjectStatsCards";
 import AnalyticsCharts from "./dashboard/AnalyticsCharts";
 import UpcomingMeetings from "./dashboard/UpcomingMeetings";
 import DashboardHero from "./dashboard/DashboardHero";
-import UnassignedEtTasks, { type UnassignedTask } from "./dashboard/UnassignedEtTasks";
 import { getCachedEtItemRows } from "@/lib/etData";
-import { itemCategory, CATEGORY_LABELS } from "@/lib/et";
 import { StaffOnly } from "@/components/AuthProvider";
 import Link from "next/link";
 
@@ -120,20 +118,13 @@ export default async function Dashboard() {
     error = "Failed to load dashboard data";
   }
 
-  // English Translation: surface items waiting for assignment (no date yet) so
-  // nothing stalls between people. Isolated so an ET issue can't break the home page.
-  let unassignedEt: UnassignedTask[] = [];
+  // English Translation total (only used to decide the empty state). Isolated so
+  // an ET issue can't break the home page. Unassigned ET tasks are surfaced on
+  // the English dashboard itself, not here on the Quranic home page.
   let englishTotal = 0;
   try {
     const etRows = (await getCachedEtItemRows()).filter((r) => !r.stopped);
     englishTotal = etRows.length;
-    unassignedEt = etRows
-      .filter((r) => r.derivedStatus === "pending_assignment")
-      .map((r) => ({
-        id: r.id,
-        title: r.title,
-        category: CATEGORY_LABELS[itemCategory(r.type)],
-      }));
   } catch (err) {
     console.error("Failed to fetch English module data:", err);
   }
@@ -232,9 +223,6 @@ export default async function Dashboard() {
             upcoming={upcomingMeetings.length}
             meetingsThisWeek={displayStats.meetingsThisWeek}
           />
-
-          {/* Unassigned English tasks — shown separately so nothing stalls */}
-          <UnassignedEtTasks tasks={unassignedEt} />
 
           {/* Stats Grid */}
           <div className="mt-4 sm:mt-6 grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-6 xl:grid-cols-5">

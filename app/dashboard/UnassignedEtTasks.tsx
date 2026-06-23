@@ -7,10 +7,10 @@ export interface UnassignedTask {
 }
 
 /**
- * Home-page alert for English Translation items that are waiting for someone to
- * be assigned (no stage has a date yet) — e.g. a weekly doc or magazine article
- * whose previous round finished but the next hand-off hasn't been set. Surfaced
- * separately so nothing silently stalls between people.
+ * Alert (shown on the English dashboard) for English Translation items waiting
+ * for someone to be assigned (no stage has a date yet) — e.g. a weekly doc or
+ * magazine article whose previous round finished but the next hand-off hasn't
+ * been set. Surfaced separately so nothing silently stalls between people.
  */
 export default function UnassignedEtTasks({ tasks }: { tasks: UnassignedTask[] }) {
   if (tasks.length === 0) return null;
