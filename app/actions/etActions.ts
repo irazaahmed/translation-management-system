@@ -124,11 +124,12 @@ export async function updateEtItemAction(
 export async function saveEtStagesAction(
   itemId: string,
   stages: StageUpsert[],
-  finalEmailDate?: string | null
+  finalEmailDate?: string | null,
+  finalEmailDate2?: string | null
 ): Promise<{ error?: string; success?: boolean }> {
   try {
     await requireStaff();
-    await saveEtStages(itemId, stages, finalEmailDate);
+    await saveEtStages(itemId, stages, finalEmailDate, finalEmailDate2);
     revalidateEt(itemId);
     return { success: true };
   } catch (error) {

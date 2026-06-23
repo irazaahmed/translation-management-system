@@ -66,7 +66,7 @@ export async function createEtItem(input: CreateEtItemInput): Promise<string> {
   if (error) throw error;
   const itemId = item.id as string;
 
-  const stageRows = blankStages().map((s) => ({ ...s, item_id: itemId }));
+  const stageRows = blankStages(input.type).map((s) => ({ ...s, item_id: itemId }));
   const { error: stageError } = await supabase.from("et_stages").insert(stageRows);
   if (stageError) throw stageError;
 
@@ -120,7 +120,8 @@ export interface StageUpsert {
 export async function saveEtStages(
   itemId: string,
   stages: StageUpsert[],
-  finalEmailDate?: string | null
+  finalEmailDate?: string | null,
+  finalEmailDate2?: string | null
 ): Promise<void> {
   const supabase = await getWriteClient();
   const seqByCode = Object.fromEntries(STAGES.map((s) => [s.code, s.seq]));
@@ -141,12 +142,13 @@ export async function saveEtStages(
     .upsert(rows, { onConflict: "item_id,stage" });
   if (error) throw error;
 
-  // Recompute status from the just-saved stage data (+ the final email date).
+  // Recompute status from the just-saved stage data (+ the final email dates).
   const itemUpdate: Record<string, unknown> = {
-    status: deriveStatus(rows as unknown as EtStage[], finalEmailDate ?? null),
+    status: deriveStatus(rows as unknown as EtStage[], finalEmailDate ?? null, finalEmailDate2 ?? null),
   };
-  // Only write final_email_date when the caller actually provided it.
+  // Only write the final email dates when the caller actually provided them.
   if (finalEmailDate !== undefined) itemUpdate.final_email_date = finalEmailDate || null;
+  if (finalEmailDate2 !== undefined) itemUpdate.final_email_date_2 = finalEmailDate2 || null;
 
   const { error: statusError } = await supabase
     .from("et_items")
@@ -304,11 +306,15 @@ export async function patchEtStages(itemId: string, patches: StagePatch[]): Prom
 
   const { data: item } = await supabase
     .from("et_items")
-    .select("final_email_date")
+    .select("final_email_date, final_email_date_2")
     .eq("id", itemId)
     .maybeSingle();
 
-  const status = deriveStatus((stages || []) as EtStage[], item?.final_email_date ?? null);
+  const status = deriveStatus(
+    (stages || []) as EtStage[],
+    item?.final_email_date ?? null,
+    item?.final_email_date_2 ?? null
+  );
   const { error: statusError } = await supabase.from("et_items").update({ status }).eq("id", itemId);
   if (statusError) throw statusError;
 }

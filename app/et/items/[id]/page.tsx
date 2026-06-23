@@ -38,12 +38,12 @@ export default async function EtItemDetailPage({ params }: Props) {
   ]);
   if (!item) notFound();
 
-  const current = computeCurrentStep(item.stages, item.final_email_date);
+  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
   const sinceDays = daysSince(current.since);
   const peopleNames = people.map((p) => p.name);
 
   // Quick-advance data: which stage to act on next, straight from the summary.
-  const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date);
+  const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date, item.final_email_date_2);
 
   // Movement timeline: stages that have actually been touched (assigned/sent),
   // in pipeline order — who had it, when it was sent and came back, how long.
@@ -101,7 +101,11 @@ export default async function EtItemDetailPage({ params }: Props) {
         <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 sm:p-4">
           {current.completed ? (
             <p className="text-sm font-medium text-green-700 dark:text-green-400">
-              ✓ Completed{item.final_email_date ? " — final email sent." : " — all applicable stages done."}
+              ✓ Completed{(item.final_email_date_2 || item.final_email_date) ? " — final email sent." : " — all applicable stages done."}
+            </p>
+          ) : current.awaitingFinalEmail ? (
+            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              All steps done — send the final email to the Islamic Sisters to complete this item.
             </p>
           ) : current.unassigned ? (
             <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -152,7 +156,7 @@ export default async function EtItemDetailPage({ params }: Props) {
 
       {/* Pipeline (editable for staff, read-only for viewers) */}
       <h2 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">Pipeline</h2>
-      <EtPipelineEditor itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} />
+      <EtPipelineEditor itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} />
 
       {/* Movement timeline — who had it, when sent, when returned, how long */}
       <h2 className="mt-6 mb-3 text-base font-semibold text-gray-900 dark:text-white">Tracking — who had it &amp; when</h2>

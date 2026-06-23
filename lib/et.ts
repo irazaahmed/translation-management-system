@@ -4,13 +4,17 @@
 // A work item flows through an 8-stage pipeline. The "current step / holder"
 // is COMPUTED from the stage rows (never stored by hand).
 
-export type StageCode = "TR" | "IF" | "CM" | "ED" | "NR" | "ST" | "FF" | "FPR";
+export type StageCode =
+  | "TR" | "IF" | "CM" | "ED" | "NR" | "ST" | "FF" | "FPR"
+  // Weekly Speech Brothers (wsb) only — an extra "Islamic Sisters" phase that
+  // runs after the first final email, before a second (final) email.
+  | "PIS" | "FFM";
 
 export type ItemBoard = "main_2026" | "kanzul_madaris" | "magazine";
 export type ItemStatus = "pending_assignment" | "in_progress" | "completed";
 export type ItemPriority = "low" | "normal" | "urgent";
 
-/** Pipeline stages in order, with their full names. */
+/** The standard 8-stage pipeline, in order, with their full names. */
 export const STAGES: { code: StageCode; seq: number; name: string }[] = [
   { code: "TR", seq: 1, name: "Translation" },
   { code: "IF", seq: 2, name: "Initial Formation" },
@@ -22,14 +26,39 @@ export const STAGES: { code: StageCode; seq: number; name: string }[] = [
   { code: "FPR", seq: 8, name: "Final Proofreading" },
 ];
 
+/**
+ * Extra stages that only apply to Weekly Speech Brothers (wsb). After the
+ * standard 8 stages + first final email (handed to the Islamic Sisters), the
+ * speech is prepared for the sisters and given a final formation, then a second
+ * final email completes it.
+ */
+export const WSB_EXTRA_STAGES: { code: StageCode; seq: number; name: string }[] = [
+  { code: "PIS", seq: 9, name: "Prepared for Islamic Sister" },
+  { code: "FFM", seq: 10, name: "Final Formation" },
+];
+
+const ALL_STAGES = [...STAGES, ...WSB_EXTRA_STAGES];
+
 export const STAGE_BY_CODE: Record<StageCode, { seq: number; name: string }> =
-  Object.fromEntries(STAGES.map((s) => [s.code, { seq: s.seq, name: s.name }])) as Record<
+  Object.fromEntries(ALL_STAGES.map((s) => [s.code, { seq: s.seq, name: s.name }])) as Record<
     StageCode,
     { seq: number; name: string }
   >;
 
 export function stageName(code: StageCode): string {
   return STAGE_BY_CODE[code]?.name ?? code;
+}
+
+/** True for Weekly Speech Brothers items, which have the extra sisters phase. */
+export function isWsbType(type: string | null | undefined): boolean {
+  return (type || "").toLowerCase() === "wsb";
+}
+
+/** The pipeline stages for a given content type (wsb gets the 2 extra stages). */
+export function stagesForType(
+  type: string | null | undefined
+): { code: StageCode; seq: number; name: string }[] {
+  return isWsbType(type) ? ALL_STAGES : STAGES;
 }
 
 /** Human-readable label for a content type code (drives the form dropdown order). */
@@ -126,6 +155,11 @@ export interface EtItem {
   delivery_date: string | null;
   /** When set, the final email was sent and the item is complete. */
   final_email_date: string | null;
+  /**
+   * Second final email — wsb only. After the sisters phase (PIS, FFM), this
+   * marks the item truly complete. Null/ignored for every other type.
+   */
+  final_email_date_2: string | null;
   /** Manually stopped / skipped projects (e.g. cancelled FOA work) — kept for the record. */
   stopped: boolean;
   priority: ItemPriority | null;
@@ -189,6 +223,8 @@ export interface CurrentStep {
   completed: boolean;
   /** No stage has a person assigned yet. */
   unassigned: boolean;
+  /** wsb only: every stage is done but the final (sisters) email isn't sent yet. */
+  awaitingFinalEmail: boolean;
   /** Count of applicable stages that are received back. */
   doneCount: number;
   /** Count of applicable stages. */
@@ -205,7 +241,8 @@ export interface CurrentStep {
  */
 export function computeCurrentStep(
   stages: EtStage[],
-  finalEmailDate?: string | null
+  finalEmailDate?: string | null,
+  finalEmailDate2?: string | null
 ): CurrentStep {
   const applicable = [...stages]
     .filter((s) => !isStageSkipped(s))
@@ -214,19 +251,25 @@ export function computeCurrentStep(
   const totalCount = applicable.length;
   const doneCount = applicable.filter((s) => !!s.received_back_date).length;
 
-  // Final email sent => done, regardless of any unfinished stage.
-  if (finalEmailDate) {
-    return {
-      stage: null,
-      label: "Completed",
-      holder: null,
-      since: null,
-      completed: true,
-      unassigned: false,
-      doneCount: totalCount,
-      totalCount,
-    };
-  }
+  // wsb items carry the extra sisters stages (PIS/FFM). For them the SECOND
+  // final email is what completes the item; the first one is just the hand-off.
+  const isWsb = applicable.some((s) => s.stage === "PIS" || s.stage === "FFM");
+  const completingEmail = isWsb ? finalEmailDate2 : finalEmailDate;
+
+  const completedResult: CurrentStep = {
+    stage: null,
+    label: "Completed",
+    holder: null,
+    since: null,
+    completed: true,
+    unassigned: false,
+    awaitingFinalEmail: false,
+    doneCount: totalCount,
+    totalCount,
+  };
+
+  // The completing final email sent => done, regardless of any unfinished stage.
+  if (completingEmail) return completedResult;
 
   // A stage's work "starts" when its SENT (first) date is written and "ends"
   // when the received-back date is written. So a stage that has a sent date but
@@ -243,27 +286,31 @@ export function computeCurrentStep(
       since: cur.sent_date ?? null,
       completed: false,
       unassigned: false,
+      awaitingFinalEmail: false,
       doneCount,
       totalCount,
     };
   }
 
-  // No stage is in progress. The item is therefore EITHER finished or waiting
-  // for the next step to be handed out — it is never "sitting at" a stage that
-  // has not been started. If the last applicable stage has its end date, the
-  // whole item is complete (the last step only "ends" once its date is set).
+  // No stage is in progress. If the last applicable stage has its end date, all
+  // the work is done. For wsb that still isn't "complete" until the second
+  // (sisters) final email is sent — surface that as a clear waiting state.
   const lastApplicable = applicable[applicable.length - 1];
   if (lastApplicable && lastApplicable.received_back_date) {
-    return {
-      stage: null,
-      label: "Completed",
-      holder: null,
-      since: null,
-      completed: true,
-      unassigned: false,
-      doneCount: totalCount,
-      totalCount,
-    };
+    if (isWsb) {
+      return {
+        stage: null,
+        label: "Awaiting final email",
+        holder: null,
+        since: null,
+        completed: false,
+        unassigned: false,
+        awaitingFinalEmail: true,
+        doneCount: totalCount,
+        totalCount,
+      };
+    }
+    return completedResult;
   }
 
   // Otherwise nobody is currently working on it: a brand-new item, or a stage
@@ -277,14 +324,19 @@ export function computeCurrentStep(
     since: null,
     completed: false,
     unassigned: true,
+    awaitingFinalEmail: false,
     doneCount,
     totalCount,
   };
 }
 
 /** Derive the high-level lifecycle status from an item's stage rows. */
-export function deriveStatus(stages: EtStage[], finalEmailDate?: string | null): ItemStatus {
-  const c = computeCurrentStep(stages, finalEmailDate);
+export function deriveStatus(
+  stages: EtStage[],
+  finalEmailDate?: string | null,
+  finalEmailDate2?: string | null
+): ItemStatus {
+  const c = computeCurrentStep(stages, finalEmailDate, finalEmailDate2);
   if (c.completed) return "completed";
   if (c.unassigned) return "pending_assignment";
   return "in_progress";
@@ -306,10 +358,11 @@ export interface ItemAdvance {
 export function computeAdvance(
   stages: EtStage[],
   finalEmailDate?: string | null,
+  finalEmailDate2?: string | null,
   now: Date = new Date()
 ): ItemAdvance | null {
-  const current = computeCurrentStep(stages, finalEmailDate);
-  if (current.completed) return null;
+  const current = computeCurrentStep(stages, finalEmailDate, finalEmailDate2);
+  if (current.completed || current.awaitingFinalEmail) return null;
 
   const applicable = [...stages].filter((s) => !isStageSkipped(s)).sort((a, b) => a.seq - b.seq);
   // When in progress, act on the current stage; otherwise the stage to START is
@@ -334,8 +387,11 @@ export function computeAdvance(
   };
 }
 
-/** Build the 8 blank stage rows for a brand-new item (no item_id yet). */
-export function blankStages(): Array<{
+/**
+ * Build the blank stage rows for a brand-new item (no item_id yet). wsb items
+ * get the 2 extra "Islamic Sisters" stages on top of the standard 8.
+ */
+export function blankStages(type?: string | null): Array<{
   stage: StageCode;
   seq: number;
   person: null;
@@ -344,7 +400,7 @@ export function blankStages(): Array<{
   not_applicable: false;
   merged: false;
 }> {
-  return STAGES.map((s) => ({
+  return stagesForType(type).map((s) => ({
     stage: s.code,
     seq: s.seq,
     person: null,
@@ -454,6 +510,8 @@ export function stageBadgeClasses(stage: StageCode | null, completed = false): s
     ST: "bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-900/20 dark:text-purple-400",
     FF: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-600/20 dark:bg-fuchsia-900/20 dark:text-fuchsia-400",
     FPR: "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-900/20 dark:text-rose-400",
+    PIS: "bg-pink-50 text-pink-700 ring-pink-600/20 dark:bg-pink-900/20 dark:text-pink-400",
+    FFM: "bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-900/20 dark:text-indigo-400",
   };
   return map[stage];
 }

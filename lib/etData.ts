@@ -21,7 +21,7 @@ import {
 // ============================================
 
 const ITEM_COLUMNS =
-  "id, title, type, board, received_date, word_count, delivery_date, final_email_date, stopped, priority, status, further_process, created_at, updated_at";
+  "id, title, type, board, received_date, word_count, delivery_date, final_email_date, final_email_date_2, stopped, priority, status, further_process, created_at, updated_at";
 const STAGE_COLUMNS =
   "id, item_id, stage, seq, person, sent_date, received_back_date, not_applicable, merged, created_at, updated_at";
 
@@ -60,13 +60,13 @@ export const getCachedEtItemsWithStages = cache(async (): Promise<EtItemWithStag
 export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
   const items = await getCachedEtItemsWithStages();
   return items.map(({ stages, ...item }) => {
-    const current = computeCurrentStep(stages, item.final_email_date);
+    const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
     const derivedStatus: ItemStatus = current.completed
       ? "completed"
       : current.unassigned
         ? "pending_assignment"
         : "in_progress";
-    const advance = computeAdvance(stages, item.final_email_date);
+    const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
     return { ...(item as EtItem), current, derivedStatus, advance };
   });
 });
