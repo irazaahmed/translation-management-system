@@ -4,15 +4,14 @@ import SummaryCard from "@/components/SummaryCard";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
 import {
   daysSince,
-  isHeldTooLong,
-  isWeeklyType,
   reminderInfo,
   stageBadgeClasses,
   urgencyClasses,
   typeLabel,
   itemCategory,
   CATEGORY_LABELS,
-  HELD_ALERT_DAYS,
+  CATEGORY_ORDER,
+  STEP_ALERT_DAYS,
 } from "@/lib/et";
 import UnassignedEtTasks from "@/app/dashboard/UnassignedEtTasks";
 
@@ -48,24 +47,34 @@ export default async function EtDashboardPage() {
   const completed = live.filter((r) => r.derivedStatus === "completed");
   const unassigned = live.filter((r) => r.derivedStatus === "pending_assignment");
 
-  // Tasks waiting for a person + date (weekly docs, magazine, anything) — shown
-  // as a separate alert so nothing stalls between people.
-  const unassignedTasks = unassigned.map((r) => ({
-    id: r.id,
-    title: r.title,
-    category: CATEGORY_LABELS[itemCategory(r.type)],
-  }));
+  // Unassigned tasks (no person + date yet), grouped by category so it's clear
+  // what kind of work is stalled (weekly docs, magazine, books, other).
+  const unassignedGroups = CATEGORY_ORDER.map((cat) => ({
+    key: cat,
+    label: CATEGORY_LABELS[cat],
+    tasks: unassigned
+      .filter((r) => itemCategory(r.type) === cat)
+      .map((r) => ({ id: r.id, title: r.title })),
+  })).filter((g) => g.tasks.length > 0);
 
-  // Weekly delivery reminders (wsb/fsp/wbl with an effective delivery date).
-  const reminders = active
-    .filter((r) => isWeeklyType(r.type))
-    .map((r) => ({ row: r, info: reminderInfo(r) }))
-    .filter((x) => x.info.delivery)
-    .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0));
-  const dueSoon = reminders.filter((x) => (x.info.daysLeft ?? 99) <= 7);
-
-  // Weekly items sitting with one person for more than HELD_ALERT_DAYS — chase up.
-  const heldTooLong = reminders.filter((x) => isHeldTooLong(x.row.current.since)).length;
+  // Top "Weekly deliveries" attention list: any active task whose delivery is
+  // within 7 days, OR that has been sitting at the same step for more than
+  // STEP_ALERT_DAYS days. Soonest delivery first, then longest-held.
+  const attention = active
+    .map((r) => ({ row: r, info: reminderInfo(r), held: daysSince(r.current.since) }))
+    .filter(
+      (x) =>
+        (x.info.daysLeft != null && x.info.daysLeft <= 7) ||
+        (x.held != null && x.held > STEP_ALERT_DAYS)
+    )
+    .sort((a, b) => {
+      const da = a.info.daysLeft ?? 9999;
+      const db = b.info.daysLeft ?? 9999;
+      if (da !== db) return da - db;
+      return (b.held ?? 0) - (a.held ?? 0);
+    });
+  const dueSoon = attention.filter((x) => x.info.daysLeft != null && x.info.daysLeft <= 7);
+  const heldOver = attention.filter((x) => x.held != null && x.held > STEP_ALERT_DAYS).length;
 
   // Stuck items (active, oldest at current step).
   const stuck = active
@@ -103,45 +112,48 @@ export default async function EtDashboardPage() {
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
           </div>
 
-          {/* Unassigned tasks — needs a person + date before work can start */}
-          <UnassignedEtTasks tasks={unassignedTasks} />
-
+          {/* 1. Weekly deliveries — due within 7 days, or held over 4 days */}
           <div className="mt-4 sm:mt-6">
-            {/* Weekly deliveries (full width) */}
             <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Weekly deliveries</h2>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-white">Weekly deliveries</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Due within 7 days, or held more than {STEP_ALERT_DAYS} days at a step.</p>
+                </div>
                 <div className="flex items-center gap-3">
-                  {heldTooLong > 0 && (
+                  {heldOver > 0 && (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                      {heldTooLong} held &gt; {HELD_ALERT_DAYS}d
+                      {heldOver} held &gt; {STEP_ALERT_DAYS}d
                     </span>
                   )}
                   <Link href="/et/reminders" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">View all →</Link>
                 </div>
               </div>
-              {dueSoon.length === 0 ? (
-                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Nothing due within 7 days. 🎉</p>
+              {attention.length === 0 ? (
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Nothing due soon or held up. 🎉</p>
               ) : (
                 <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
-                  {dueSoon.slice(0, 12).map(({ row, info }) => {
-                    const held = isHeldTooLong(row.current.since);
-                    const heldDays = daysSince(row.current.since);
+                  {attention.slice(0, 14).map(({ row, info, held }) => {
+                    const isHeld = held != null && held > STEP_ALERT_DAYS;
                     return (
-                      <li key={row.id} className={`py-2 ${held ? "-mx-2 rounded-lg bg-red-50/60 px-2 dark:bg-red-900/10" : ""}`}>
-                        <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
-                          <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
-                            {info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
-                          </span>
+                      <li key={row.id} className={`py-2 ${isHeld ? "-mx-2 rounded-lg bg-red-50/60 px-2 dark:bg-red-900/10" : ""}`}>
+                        <Link href={`/et/items/${row.id}`} className="group flex items-center gap-2 sm:gap-3">
+                          {info.daysLeft != null ? (
+                            <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
+                              {info.daysLeft < 0 ? `${Math.abs(info.daysLeft)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
+                            </span>
+                          ) : (
+                            <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">no date</span>
+                          )}
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
-                          {held && (
-                            <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400" title={`Held ${heldDays} days — chase up`}>
-                              ⏳ {heldDays}d
+                          {isHeld && (
+                            <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400" title={`Held ${held} days at this step — chase up`}>
+                              ⏳ {held}d
                             </span>
                           )}
                           <StageChip row={row} />
                           <span className="hidden sm:block flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
-                          <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
+                          <span className="hidden sm:block flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
                         </Link>
                       </li>
                     );
@@ -151,7 +163,10 @@ export default async function EtDashboardPage() {
             </div>
           </div>
 
-          {/* Stuck items */}
+          {/* 2. Unassigned tasks — grouped by category */}
+          <UnassignedEtTasks groups={unassignedGroups} total={unassigned.length} />
+
+          {/* 3. Longest at current step */}
           <div className="mt-4 sm:mt-6 gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">Longest at current step</h2>
             {stuck.length === 0 ? (

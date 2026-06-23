@@ -3,17 +3,28 @@ import Link from "next/link";
 export interface UnassignedTask {
   id: string;
   title: string;
-  category: string;
+}
+
+export interface UnassignedGroup {
+  key: string;
+  label: string;
+  tasks: UnassignedTask[];
 }
 
 /**
  * Alert (shown on the English dashboard) for English Translation items waiting
  * for someone to be assigned (no stage has a date yet) — e.g. a weekly doc or
  * magazine article whose previous round finished but the next hand-off hasn't
- * been set. Surfaced separately so nothing silently stalls between people.
+ * been set. Grouped by category so it's clear what kind of work is stalled.
  */
-export default function UnassignedEtTasks({ tasks }: { tasks: UnassignedTask[] }) {
-  if (tasks.length === 0) return null;
+export default function UnassignedEtTasks({
+  groups,
+  total,
+}: {
+  groups: UnassignedGroup[];
+  total: number;
+}) {
+  if (total === 0) return null;
 
   return (
     <div className="mt-4 sm:mt-6 rounded-2xl border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/15 p-4 sm:p-5 shadow-sm">
@@ -26,7 +37,7 @@ export default function UnassignedEtTasks({ tasks }: { tasks: UnassignedTask[] }
           </span>
           <div>
             <h2 className="text-base font-semibold text-amber-800 dark:text-amber-300">
-              Unassigned English tasks ({tasks.length})
+              Unassigned tasks ({total})
             </h2>
             <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
               These need a person + date before work can start.
@@ -38,23 +49,30 @@ export default function UnassignedEtTasks({ tasks }: { tasks: UnassignedTask[] }
         </Link>
       </div>
 
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {tasks.slice(0, 12).map((t) => (
-          <li key={t.id}>
-            <Link
-              href={`/et/items/${t.id}`}
-              className="group flex items-center gap-2 rounded-lg border border-amber-200/70 dark:border-amber-800/40 bg-white/70 dark:bg-gray-900/40 px-3 py-2"
-            >
-              <span className="flex-shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                {t.category}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-amber-700 dark:group-hover:text-amber-400" title={t.title}>
-                {t.title}
-              </span>
-            </Link>
-          </li>
+      <div className="mt-4 space-y-4">
+        {groups.map((g) => (
+          <div key={g.key}>
+            <div className="mb-2 flex items-center gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">{g.label}</h3>
+              <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">{g.tasks.length}</span>
+            </div>
+            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {g.tasks.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/et/items/${t.id}`}
+                    className="group flex items-center gap-2 rounded-lg border border-amber-200/70 dark:border-amber-800/40 bg-white/70 dark:bg-gray-900/40 px-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-amber-700 dark:group-hover:text-amber-400" title={t.title}>
+                      {t.title}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

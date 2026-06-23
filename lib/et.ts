@@ -369,6 +369,12 @@ export function daysSince(since: string | null, now: Date = new Date()): number 
  */
 export const HELD_ALERT_DAYS = 2;
 
+/**
+ * Dashboard threshold: a task sitting at the same step for more than this many
+ * days is surfaced in the top "Weekly deliveries" attention list.
+ */
+export const STEP_ALERT_DAYS = 4;
+
 /** True when an item has been sitting at its current step longer than HELD_ALERT_DAYS. */
 export function isHeldTooLong(since: string | null, now: Date = new Date()): boolean {
   const d = daysSince(since, now);

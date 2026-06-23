@@ -104,11 +104,11 @@ export default function Header() {
         </form>
 
         <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
-          {/* Date & time — compact (no seconds) on mobile, full on desktop */}
+          {/* Date & time — stacked (date over time) on mobile, full inline on desktop */}
           <LiveClock
             showSeconds={false}
-            showIcon
-            className="md:hidden text-[11px] text-gray-500 dark:text-gray-400 transition-colors duration-200"
+            stacked
+            className="md:hidden text-[10px] text-gray-500 dark:text-gray-400 transition-colors duration-200"
           />
           <LiveClock
             showIcon

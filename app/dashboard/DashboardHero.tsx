@@ -34,13 +34,6 @@ export default function DashboardHero({
       className="animate-pop-3d mb-4 sm:mb-6 rounded-2xl shadow-lg"
     >
       <div className="animate-gradient relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-blue-600 p-4 sm:p-7 text-white">
-        {/* Decorative floating circles */}
-        <div className="float-3d pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-        <div
-          className="float-3d pointer-events-none absolute -bottom-12 right-24 h-32 w-32 rounded-full bg-white/10 blur-2xl"
-          style={{ animationDelay: "1.2s" }}
-        />
-
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-center sm:text-left">
           <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Translation Management System</p>

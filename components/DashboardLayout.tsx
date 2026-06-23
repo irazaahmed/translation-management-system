@@ -1,7 +1,6 @@
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import Footer from "./Footer";
-import AuroraBackground from "./AuroraBackground";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -10,7 +9,6 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="relative min-h-screen bg-transparent transition-colors duration-200">
-      <AuroraBackground />
       <Sidebar />
       <div className="lg:ml-64 flex flex-col min-w-0 min-h-screen overflow-visible">
         <Header />

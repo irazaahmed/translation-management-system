@@ -11,6 +11,8 @@ interface LiveClockProps {
   showIcon?: boolean;
   /** Use the longer weekday+year date format (else short month/day). */
   longDate?: boolean;
+  /** Stack the date above the time (instead of inline) — good for tight mobile bars. */
+  stacked?: boolean;
   className?: string;
 }
 
@@ -24,6 +26,7 @@ export default function LiveClock({
   showSeconds = true,
   showIcon = false,
   longDate = false,
+  stacked = false,
   className = "",
 }: LiveClockProps) {
   const [now, setNow] = useState<Date | null>(null);
@@ -49,6 +52,16 @@ export default function LiveClock({
     ...(showSeconds ? { second: "2-digit" } : {}),
     hour12: true,
   });
+
+  // Stacked: date on top, time below — compact for tight mobile bars.
+  if (stacked) {
+    return (
+      <span className={`inline-flex flex-col items-end leading-tight tabular-nums ${className}`} suppressHydrationWarning>
+        {showDate && <span className="opacity-80">{dateStr}</span>}
+        <span className="font-medium">{timeStr}</span>
+      </span>
+    );
+  }
 
   return (
     <span className={`inline-flex items-center gap-1.5 tabular-nums ${className}`} suppressHydrationWarning>
