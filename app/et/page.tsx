@@ -4,11 +4,13 @@ import SummaryCard from "@/components/SummaryCard";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
 import {
   daysSince,
+  isHeldTooLong,
   isWeeklyType,
   reminderInfo,
   stageBadgeClasses,
   urgencyClasses,
   typeLabel,
+  HELD_ALERT_DAYS,
 } from "@/lib/et";
 
 export const dynamic = "force-dynamic";
@@ -51,13 +53,8 @@ export default async function EtDashboardPage() {
     .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0));
   const dueSoon = reminders.filter((x) => (x.info.daysLeft ?? 99) <= 7);
 
-  // Workload by current holder (active only).
-  const workloadMap = new Map<string, number>();
-  active.forEach((r) => {
-    if (r.current.holder) workloadMap.set(r.current.holder, (workloadMap.get(r.current.holder) || 0) + 1);
-  });
-  const workload = [...workloadMap.entries()].sort((a, b) => b[1] - a[1]);
-  const maxLoad = workload.length ? workload[0][1] : 1;
+  // Weekly items sitting with one person for more than HELD_ALERT_DAYS — chase up.
+  const heldTooLong = reminders.filter((x) => isHeldTooLong(x.row.current.since)).length;
 
   // Stuck items (active, oldest at current step).
   const stuck = active
@@ -95,57 +92,46 @@ export default async function EtDashboardPage() {
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
           </div>
 
-          <div className="mt-4 sm:mt-6 grid gap-4 xl:grid-cols-3">
-            {/* Reminders */}
-            <div className="xl:col-span-2 gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
+          <div className="mt-4 sm:mt-6">
+            {/* Weekly deliveries (full width) */}
+            <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">Weekly deliveries</h2>
-                <Link href="/et/reminders" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">View all →</Link>
+                <div className="flex items-center gap-3">
+                  {heldTooLong > 0 && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                      {heldTooLong} held &gt; {HELD_ALERT_DAYS}d
+                    </span>
+                  )}
+                  <Link href="/et/reminders" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">View all →</Link>
+                </div>
               </div>
               {dueSoon.length === 0 ? (
                 <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Nothing due within 7 days. 🎉</p>
               ) : (
                 <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
-                  {dueSoon.slice(0, 10).map(({ row, info }) => (
-                    <li key={row.id} className="py-2">
-                      <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
-                        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
-                          {info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
-                        <StageChip row={row} />
-                        <span className="hidden sm:block flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
-                        <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Workload */}
-            <div className="gloss rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Workload</h2>
-                <Link href="/et/workforce" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">Workforce →</Link>
-              </div>
-              {workload.length === 0 ? (
-                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No active assignments.</p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {workload.slice(0, 8).map(([name, count]) => (
-                    <li key={name}>
-                      <Link href={`/et/items?holder=${encodeURIComponent(name)}`} className="group block">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="truncate text-gray-700 dark:text-gray-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{name}</span>
-                          <span className="tabular-nums font-medium text-gray-900 dark:text-white">{count}</span>
-                        </div>
-                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" style={{ width: `${(count / maxLoad) * 100}%` }} />
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
+                  {dueSoon.slice(0, 12).map(({ row, info }) => {
+                    const held = isHeldTooLong(row.current.since);
+                    const heldDays = daysSince(row.current.since);
+                    return (
+                      <li key={row.id} className={`py-2 ${held ? "-mx-2 rounded-lg bg-red-50/60 px-2 dark:bg-red-900/10" : ""}`}>
+                        <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
+                          <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
+                            {info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
+                          {held && (
+                            <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400" title={`Held ${heldDays} days — chase up`}>
+                              ⏳ {heldDays}d
+                            </span>
+                          )}
+                          <StageChip row={row} />
+                          <span className="hidden sm:block flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
+                          <span className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{fmt(info.delivery)}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

@@ -3,11 +3,13 @@ import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
 import {
   daysSince,
+  isHeldTooLong,
   isWeeklyType,
   reminderInfo,
   stageBadgeClasses,
   typeLabel,
   urgencyClasses,
+  HELD_ALERT_DAYS,
   type ReminderInfo,
 } from "@/lib/et";
 import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
@@ -25,10 +27,11 @@ type Entry = { row: EtItemRow; info: ReminderInfo };
 
 function Card({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
   const days = daysSince(row.current.since);
+  const held = isHeldTooLong(row.current.since);
   const left =
     info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d late` : info.daysLeft === 0 ? "Due today" : `${info.daysLeft}d left`;
   return (
-    <div className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
+    <div className={`gloss card-hover rounded-xl border p-4 shadow-sm ${held ? "border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-900/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"}`}>
       <div className="flex items-start justify-between gap-3">
         <Link href={`/et/items/${row.id}`} className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
@@ -42,7 +45,9 @@ function Card({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
           {row.current.stage ? `${row.current.stage} · ${row.current.label}` : row.current.label}
         </span>
         {days != null && (
-          <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${days > 30 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{days}d here</span>
+          <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${held ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+            {held && "⏳ "}{days}d here
+          </span>
         )}
       </div>
 
@@ -106,6 +111,7 @@ export default async function EtRemindersPage() {
   const overdue = entries.filter((e) => e.info.urgency === "overdue");
   const week = entries.filter((e) => (e.info.daysLeft ?? 99) >= 0 && (e.info.daysLeft ?? 99) <= 7);
   const upcoming = entries.filter((e) => (e.info.daysLeft ?? 0) > 7);
+  const heldCount = entries.filter((e) => isHeldTooLong(e.row.current.since)).length;
 
   // Unassigned weekly tasks (like the Excel sheet's second column).
   const unassigned = weekly.filter((r) => r.derivedStatus === "pending_assignment");
@@ -118,6 +124,9 @@ export default async function EtRemindersPage() {
           <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Weekly Documents</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Weekly Speech Brothers · Friday Speech · Weekly Booklet — {overdue.length} overdue · {week.length} due this week · {upcoming.length} upcoming
+            {heldCount > 0 && (
+              <span className="ml-1 font-medium text-red-600 dark:text-red-400">· {heldCount} held &gt; {HELD_ALERT_DAYS}d</span>
+            )}
           </p>
         </div>
         <Link href="/et" className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">

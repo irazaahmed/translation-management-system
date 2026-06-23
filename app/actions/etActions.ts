@@ -10,10 +10,13 @@ import {
   setEtStopped,
   saveEtStages,
   patchEtStages,
+  addEtReturn,
+  updateEtReturn,
+  deleteEtReturn,
   type StageUpsert,
   type StagePatch,
 } from "@/lib/etMutations";
-import { parseTitleDate, type ItemPriority } from "@/lib/et";
+import { parseTitleDate, type ItemPriority, type StageCode } from "@/lib/et";
 
 export interface EtFormState {
   error?: string;
@@ -142,6 +145,73 @@ export async function patchEtStagesAction(
       return { error: "You don't have permission to update the pipeline." };
     }
     return { error: "Failed to save. Please try again." };
+  }
+}
+
+/** Add a "return to complete missing part" entry. */
+export async function addEtReturnAction(
+  itemId: string,
+  input: {
+    stage: StageCode | null;
+    note: string | null;
+    person: string | null;
+    sent_date: string | null;
+    received_back_date: string | null;
+  }
+): Promise<{ error?: string; success?: boolean }> {
+  if (!input.note?.trim() && !input.person?.trim()) {
+    return { error: "Add a note of what's missing, or who it went to." };
+  }
+  try {
+    await requireStaff();
+    await addEtReturn(itemId, input);
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to add return:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to update this item." };
+    }
+    return { error: "Failed to save. Has the et_returns migration been run?" };
+  }
+}
+
+/** Mark a return as completed (received back), or clear it. */
+export async function updateEtReturnAction(
+  itemId: string,
+  returnId: string,
+  received_back_date: string | null
+): Promise<{ error?: string; success?: boolean }> {
+  try {
+    await requireStaff();
+    await updateEtReturn(returnId, { received_back_date });
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update return:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to update this item." };
+    }
+    return { error: "Failed to save. Please try again." };
+  }
+}
+
+/** Delete a return entry. */
+export async function deleteEtReturnAction(
+  itemId: string,
+  returnId: string
+): Promise<{ error?: string; success?: boolean }> {
+  try {
+    await requireStaff();
+    await deleteEtReturn(returnId);
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete return:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to update this item." };
+    }
+    return { error: "Failed to delete. Please try again." };
   }
 }
 

@@ -81,7 +81,7 @@ export default function Header() {
                 />
               </span>
             </span>
-            <h1 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white truncate min-w-0 transition-colors duration-200">
+            <h1 className="hidden sm:block text-sm sm:text-base lg:text-lg font-semibold text-gray-900 dark:text-white truncate min-w-0 transition-colors duration-200">
               <span className="hidden sm:inline">Translation </span>Management System
             </h1>
           </div>
@@ -104,16 +104,12 @@ export default function Header() {
         </form>
 
         <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
-          {/* Mobile search icon */}
-          <Link
-            href="/search"
-            className="md:hidden rounded-lg p-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
-            aria-label="Search"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </Link>
+          {/* Date & time — compact (no seconds) on mobile, full on desktop */}
+          <LiveClock
+            showSeconds={false}
+            showIcon
+            className="md:hidden text-[11px] text-gray-500 dark:text-gray-400 transition-colors duration-200"
+          />
           <LiveClock
             showIcon
             className="hidden md:inline-flex text-xs sm:text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200"

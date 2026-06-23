@@ -12,6 +12,14 @@ import {
   type StageCode,
 } from "./et";
 
+export interface AddEtReturnInput {
+  stage: StageCode | null;
+  note: string | null;
+  person: string | null;
+  sent_date: string | null;
+  received_back_date: string | null;
+}
+
 /**
  * Write operations for the English Translation module. Server-only; uses the
  * request-scoped Supabase client bound to the logged-in user's session so RLS
@@ -133,6 +141,42 @@ export async function saveEtStages(itemId: string, stages: StageUpsert[]): Promi
     .update({ status })
     .eq("id", itemId);
   if (statusError) throw statusError;
+}
+
+/** Add a "return to complete missing part" entry for an item. */
+export async function addEtReturn(itemId: string, input: AddEtReturnInput): Promise<void> {
+  const supabase = await getWriteClient();
+  const { error } = await supabase.from("et_returns").insert([
+    {
+      item_id: itemId,
+      stage: input.stage,
+      note: input.note?.trim() || null,
+      person: input.person?.trim() || null,
+      sent_date: input.sent_date || null,
+      received_back_date: input.received_back_date || null,
+    },
+  ]);
+  if (error) throw error;
+}
+
+/** Mark an existing return as completed (its received-back date). */
+export async function updateEtReturn(
+  returnId: string,
+  patch: { received_back_date?: string | null }
+): Promise<void> {
+  const supabase = await getWriteClient();
+  const { error } = await supabase
+    .from("et_returns")
+    .update({ received_back_date: patch.received_back_date || null })
+    .eq("id", returnId);
+  if (error) throw error;
+}
+
+/** Delete a return entry. */
+export async function deleteEtReturn(returnId: string): Promise<void> {
+  const supabase = await getWriteClient();
+  const { error } = await supabase.from("et_returns").delete().eq("id", returnId);
+  if (error) throw error;
 }
 
 export interface StagePatch {

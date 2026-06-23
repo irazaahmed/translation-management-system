@@ -7,6 +7,7 @@ import {
   EtItemWithStages,
   EtStage,
   EtPerson,
+  EtReturn,
   computeCurrentStep,
   computeAdvance,
   type CurrentStep,
@@ -81,6 +82,26 @@ export const getCachedEtItem = cache(async (id: string): Promise<EtItemWithStage
     ...(data as EtItem),
     stages: sortStages(((data as any).et_stages || []) as EtStage[]),
   };
+});
+
+/**
+ * The "return to complete missing part" entries for an item, newest first.
+ * Tolerant of the et_returns table not existing yet (returns [] so the item
+ * page still loads before the migration is run).
+ */
+export const getCachedEtReturns = cache(async (itemId: string): Promise<EtReturn[]> => {
+  try {
+    const { data, error } = await supabase
+      .from("et_returns")
+      .select("id, item_id, stage, note, person, sent_date, received_back_date, created_at")
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data || []) as EtReturn[];
+  } catch (err) {
+    console.error("Failed to fetch ET returns (has the migration been run?):", err);
+    return [];
+  }
 });
 
 /** Workforce people. */

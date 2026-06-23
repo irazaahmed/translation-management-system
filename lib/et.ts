@@ -135,6 +135,27 @@ export interface EtItemWithStages extends EtItem {
   stages: EtStage[];
 }
 
+/**
+ * An optional "go back and fix a missed part" step. Sometimes an item moves on
+ * a few stages and only then someone notices a missing/incorrect part, so it is
+ * handed back to be completed. We log it like a normal hand-off: a note of what
+ * was missing, who it went to, when it was given, and when it came back.
+ */
+export interface EtReturn {
+  id: string;
+  item_id: string;
+  /** Pipeline stage it was sent back to (optional). */
+  stage: StageCode | null;
+  /** What was missing / needs completing. */
+  note: string | null;
+  person: string | null;
+  /** When it was handed back (kab dia). */
+  sent_date: string | null;
+  /** When it came back completed (kab aya). */
+  received_back_date: string | null;
+  created_at?: string;
+}
+
 export interface EtPerson {
   id: string;
   name: string;
@@ -221,9 +242,11 @@ export function computeCurrentStep(
     };
   }
 
-  // Nothing in progress. If no stage has been touched at all -> not started.
-  const anyActivity = applicable.some((s) => s.person || s.sent_date || s.received_back_date);
-  if (!anyActivity) {
+  // Nothing in progress. A stage only "starts" once it has a date — a person
+  // pencilled in with no sent date yet does NOT count as started, so the item
+  // stays "Pending Assignment" until a date is put on it.
+  const anyDated = applicable.some((s) => s.sent_date || s.received_back_date);
+  if (!anyDated) {
     return {
       stage: null,
       label: "Pending Assignment",
@@ -359,6 +382,18 @@ export function daysSince(since: string | null, now: Date = new Date()): number 
   const d = new Date(since);
   if (isNaN(d.getTime())) return null;
   return Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * Anything held by one person for more than this many days is flagged on the
+ * weekly views so it can be chased up.
+ */
+export const HELD_ALERT_DAYS = 2;
+
+/** True when an item has been sitting at its current step longer than HELD_ALERT_DAYS. */
+export function isHeldTooLong(since: string | null, now: Date = new Date()): boolean {
+  const d = daysSince(since, now);
+  return d != null && d > HELD_ALERT_DAYS;
 }
 
 /**

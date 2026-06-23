@@ -1,11 +1,12 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCachedEtItem, getCachedEtPeople } from "@/lib/etData";
+import { getCachedEtItem, getCachedEtPeople, getCachedEtReturns } from "@/lib/etData";
 import { computeAdvance, computeCurrentStep, daysSince, isStageSkipped, stageName, typeLabel } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
 import EtQuickAdvance from "./EtQuickAdvance";
+import EtReturns from "./EtReturns";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,11 @@ function daysBetween(a: string | null, b: string | null): number | null {
 
 export default async function EtItemDetailPage({ params }: Props) {
   const { id } = await params;
-  const [item, people] = await Promise.all([getCachedEtItem(id), getCachedEtPeople()]);
+  const [item, people, returns] = await Promise.all([
+    getCachedEtItem(id),
+    getCachedEtPeople(),
+    getCachedEtReturns(id),
+  ]);
   if (!item) notFound();
 
   const current = computeCurrentStep(item.stages, item.final_email_date);
@@ -187,6 +192,9 @@ export default async function EtItemDetailPage({ params }: Props) {
           </ol>
         </div>
       )}
+
+      {/* Returns — go back and complete a missed part */}
+      <EtReturns itemId={item.id} returns={returns} peopleNames={peopleNames} />
 
       {/* Further process notes */}
       {item.further_process && (
