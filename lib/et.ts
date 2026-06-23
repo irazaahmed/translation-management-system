@@ -197,9 +197,11 @@ export interface CurrentStep {
 
 /**
  * Derive the current step / holder from an item's stage rows.
- * The current step is the first applicable stage whose work has not yet
- * been received back. The holder is that stage's person; "since" is its
- * sent date (falling back to the previous stage's received-back date).
+ * The current step is the stage that is actively in progress — i.e. it has a
+ * start date (sent_date) but no end date (received_back_date) yet. If no stage
+ * is in progress, the item is either Completed (the last applicable stage has
+ * its end date) or Pending Assignment (waiting for the next step to be given
+ * out — a step never counts as started until it has a start date).
  */
 export function computeCurrentStep(
   stages: EtStage[],
@@ -246,29 +248,12 @@ export function computeCurrentStep(
     };
   }
 
-  // Nothing in progress. A stage only "starts" once it has a date — a person
-  // pencilled in with no sent date yet does NOT count as started, so the item
-  // stays "Pending Assignment" until a date is put on it.
-  const anyDated = applicable.some((s) => s.sent_date || s.received_back_date);
-  if (!anyDated) {
-    return {
-      stage: null,
-      label: "Pending Assignment",
-      holder: null,
-      since: null,
-      completed: false,
-      unassigned: true,
-      doneCount,
-      totalCount,
-    };
-  }
-
-  // Every started stage is finished. If the last applicable stage is done, the
-  // item is complete (even if an earlier stage was left empty/skipped).
-  const finished = applicable.filter((s) => s.received_back_date);
-  const furthestFinished = finished.length ? finished[finished.length - 1] : null;
+  // No stage is in progress. The item is therefore EITHER finished or waiting
+  // for the next step to be handed out — it is never "sitting at" a stage that
+  // has not been started. If the last applicable stage has its end date, the
+  // whole item is complete (the last step only "ends" once its date is set).
   const lastApplicable = applicable[applicable.length - 1];
-  if (furthestFinished && lastApplicable && furthestFinished.seq === lastApplicable.seq) {
+  if (lastApplicable && lastApplicable.received_back_date) {
     return {
       stage: null,
       label: "Completed",
@@ -281,31 +266,18 @@ export function computeCurrentStep(
     };
   }
 
-  // Otherwise the work is waiting between stages: show the next unfinished stage.
-  const fromSeq = furthestFinished ? furthestFinished.seq : 0;
-  const next = applicable.find((s) => s.seq > fromSeq && !s.received_back_date);
-  if (next) {
-    return {
-      stage: next.stage,
-      label: stageName(next.stage),
-      holder: next.person ?? null,
-      since: next.sent_date ?? furthestFinished?.received_back_date ?? null,
-      completed: false,
-      unassigned: false,
-      doneCount,
-      totalCount,
-    };
-  }
-
-  // Fallback.
+  // Otherwise nobody is currently working on it: a brand-new item, or a stage
+  // was returned but the next one has no start date yet (not assigned to anyone
+  // yet). Both show as Pending Assignment — a step only "starts" once it has a
+  // start date.
   return {
     stage: null,
-    label: "Completed",
+    label: "Pending Assignment",
     holder: null,
     since: null,
-    completed: true,
-    unassigned: false,
-    doneCount: totalCount,
+    completed: false,
+    unassigned: true,
+    doneCount,
     totalCount,
   };
 }
@@ -340,7 +312,10 @@ export function computeAdvance(
   if (current.completed) return null;
 
   const applicable = [...stages].filter((s) => !isStageSkipped(s)).sort((a, b) => a.seq - b.seq);
-  const actStage = current.stage ?? applicable[0]?.stage ?? null;
+  // When in progress, act on the current stage; otherwise the stage to START is
+  // the first applicable one that hasn't been received back yet (the next step
+  // waiting to be assigned) — not necessarily the very first stage.
+  const actStage = current.stage ?? applicable.find((s) => !s.received_back_date)?.stage ?? null;
   if (!actStage) return null;
 
   const actRow = stages.find((s) => s.stage === actStage) ?? null;

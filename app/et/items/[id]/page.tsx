@@ -104,7 +104,11 @@ export default async function EtItemDetailPage({ params }: Props) {
               ✓ Completed{item.final_email_date ? " — final email sent." : " — all applicable stages done."}
             </p>
           ) : current.unassigned ? (
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Pending assignment — no stage has been assigned yet.</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              {current.doneCount > 0
+                ? "Pending assignment — the previous step is done but the next one hasn't been given out yet (no start date)."
+                : "Pending assignment — no step has been started yet."}
+            </p>
           ) : (
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Currently at{" "}
