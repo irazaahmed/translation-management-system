@@ -60,6 +60,7 @@ export default async function EtReportsPage() {
         type: typeName,
         category: CATEGORY_LABELS[cat],
         status: current.completed ? "Completed" : current.unassigned ? "Unassigned" : "In Progress",
+        stageCode: current.stage,
         currentStep: current.stage ? `${current.stage} · ${current.label}` : current.label,
         holder: current.holder ?? "",
         progress: `${current.doneCount}/${current.totalCount}`,
