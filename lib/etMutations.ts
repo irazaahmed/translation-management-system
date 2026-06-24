@@ -3,7 +3,7 @@ import { createClient as createServerSupabase } from "./supabase/server";
 import {
   blankStages,
   deriveStatus,
-  STAGES,
+  STAGE_BY_CODE,
   type EtItem,
   type EtStage,
   type ItemBoard,
@@ -138,12 +138,11 @@ export async function saveEtStages(
   finalEmailDate2?: string | null
 ): Promise<void> {
   const supabase = await getWriteClient();
-  const seqByCode = Object.fromEntries(STAGES.map((s) => [s.code, s.seq]));
 
   const rows = stages.map((s) => ({
     item_id: itemId,
     stage: s.stage,
-    seq: seqByCode[s.stage],
+    seq: STAGE_BY_CODE[s.stage].seq,
     person: s.person?.trim() || null,
     sent_date: s.sent_date || null,
     received_back_date: s.received_back_date || null,
