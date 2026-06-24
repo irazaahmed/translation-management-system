@@ -6,6 +6,36 @@ import BooksManager, { type BookRow } from "./BooksManager";
 
 export const dynamic = "force-dynamic";
 
+// Manual display order (matches the team's tracking sheet, "for now"). Each entry
+// is a distinctive lowercase substring of the title; books not listed here sort
+// after these, alphabetically. Completed books are not shown at all.
+const ORDERED_BOOK_KEYS = [
+  "aaina e qiyamat",
+  "anwaar-ul-hadees",
+  "faizan e siddiq",
+  "faizan e ummahat",
+  "islami maheeno",
+  "jannat me le janay",
+  "khassiyyat abwab",
+  "madani qafle walo",
+  "mukhtasir minhaj",
+  "quran seekhyen",
+  "ishq-e-rasool",
+  "talkhees usool",
+  "zia ul qari - complete",
+  "aurat aur quran",
+  "qwaidul sarf final all parts",
+  "khulasa tun nahw",
+  "maktoobat e ameer",
+  "bahar e dua",
+];
+
+function orderIndex(title: string): number {
+  const t = title.toLowerCase();
+  const i = ORDERED_BOOK_KEYS.findIndex((k) => t.includes(k));
+  return i === -1 ? ORDERED_BOOK_KEYS.length : i;
+}
+
 export default async function EtBooksPage() {
   let rows: EtItemRow[] = [];
   let error: string | null = null;
@@ -16,13 +46,14 @@ export default async function EtBooksPage() {
     error = "Failed to load. Have you run the migration and import yet?";
   }
 
-  // Books only (type 'bks'), live (not stopped). Incomplete first, then by title.
+  // Books only (type 'bks'), in-process only (completed & stopped are hidden),
+  // ordered to match the team's tracking sheet, then alphabetically.
   const books: BookRow[] = rows
-    .filter((r) => !r.stopped && itemCategory(r.type) === "books")
+    .filter((r) => !r.stopped && itemCategory(r.type) === "books" && r.derivedStatus !== "completed")
     .sort((a, b) => {
-      const aDone = a.derivedStatus === "completed" ? 1 : 0;
-      const bDone = b.derivedStatus === "completed" ? 1 : 0;
-      if (aDone !== bDone) return aDone - bDone;
+      const ia = orderIndex(a.title);
+      const ib = orderIndex(b.title);
+      if (ia !== ib) return ia - ib;
       return a.title.localeCompare(b.title);
     })
     .map((r) => ({
@@ -39,8 +70,6 @@ export default async function EtBooksPage() {
       comment: r.further_process ?? "",
     }));
 
-  const active = books.filter((b) => !b.completed).length;
-
   return (
     <DashboardLayout>
       <div className="mb-4 sm:mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -48,7 +77,7 @@ export default async function EtBooksPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">English Translation</p>
           <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Books</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {books.length} books · {active} active · {books.length - active} completed
+            {books.length} in-process book{books.length === 1 ? "" : "s"} · completed are hidden
           </p>
         </div>
         <Link href="/et" className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
