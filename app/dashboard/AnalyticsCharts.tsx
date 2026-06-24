@@ -33,9 +33,9 @@ function Donut({
   let acc = 0;
 
   return (
-    <div className="flex items-center gap-5">
-      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-5">
+      <div className="relative aspect-square w-32 flex-shrink-0 sm:w-[168px]">
+        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
           {/* track */}
           <circle
             cx={size / 2}
@@ -77,8 +77,8 @@ function Donut({
         </div>
       </div>
 
-      {/* Legend */}
-      <ul className="space-y-2 min-w-0">
+      {/* Legend — full width below the donut on mobile, beside it from sm up */}
+      <ul className="w-full space-y-2 sm:w-auto sm:min-w-0 sm:flex-1">
         {segments.map((seg) => {
           const pct = total > 0 ? Math.round((seg.value / total) * 100) : 0;
           return (
@@ -98,7 +98,7 @@ function Donut({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card-hover animate-fade-in-up rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+    <div className="card-hover animate-fade-in-up rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
       {children}
     </div>

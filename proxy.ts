@@ -92,8 +92,7 @@ export async function proxy(request: NextRequest) {
   // Login-first gate: anyone who is NOT logged in must land on the login page
   // first — for the home page and any direct link alike. The only exceptions
   // are the login page itself, the "continue without login" entry point, and
-  // API routes. Visitors who explicitly opted into the public view-only mode
-  // (via "Continue without login") keep their guest access.
+  // API routes.
   const isAuthExempt =
     pathname === "/login" ||
     pathname === "/view" ||
@@ -101,7 +100,12 @@ export async function proxy(request: NextRequest) {
 
   if (!user && !isAuthExempt) {
     const optedIntoView = request.cookies.get("qtms_view");
-    if (!optedIntoView) {
+    // Guests (opted into view-only, not logged in) may preview ONLY the two
+    // dashboards — the Quranic home (/) and the English dashboard (/et). Every
+    // other page requires logging in (even just as a viewer). Logged-in viewers
+    // keep full view access to the whole site.
+    const guestAllowed = pathname === "/" || pathname === "/et";
+    if (!optedIntoView || !guestAllowed) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("redirect", pathname + request.nextUrl.search);
