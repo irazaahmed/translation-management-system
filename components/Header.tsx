@@ -104,15 +104,11 @@ export default function Header() {
         </form>
 
         <div className="flex flex-shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
-          {/* Date & time — stacked (date over time) on mobile, full inline on desktop */}
+          {/* Date & time — a single right-aligned stacked clock (date over time) */}
           <LiveClock
             showSeconds={false}
             stacked
-            className="md:hidden text-[10px] text-gray-500 dark:text-gray-400 transition-colors duration-200"
-          />
-          <LiveClock
-            showIcon
-            className="hidden md:inline-flex text-xs sm:text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200"
+            className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 transition-colors duration-200"
           />
 
           {/* Theme Selector Dropdown */}
