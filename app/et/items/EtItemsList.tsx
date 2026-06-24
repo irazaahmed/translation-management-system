@@ -52,16 +52,35 @@ function StageBadge({ row }: { row: EtItemRow }) {
 
 interface Props {
   items: EtItemRow[];
-  initial?: { holder?: string; stage?: string; status?: string };
+  initial?: { holder?: string; stage?: string; status?: string; category?: string; q?: string; sort?: string };
 }
 
+const VALID_CATEGORY_TABS: CategoryTab[] = [...CATEGORY_ORDER, "skipped", "all"];
+
 export default function EtItemsList({ items, initial }: Props) {
-  const [category, setCategory] = useState<CategoryTab>("weekly");
-  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<CategoryTab>(
+    VALID_CATEGORY_TABS.includes(initial?.category as CategoryTab) ? (initial!.category as CategoryTab) : "weekly"
+  );
+  const [query, setQuery] = useState(initial?.q ?? "");
   const [status, setStatus] = useState<string>(initial?.status ?? "all");
   const [stage, setStage] = useState<string>(initial?.stage ?? "all");
   const [holder, setHolder] = useState<string>(initial?.holder ?? "all");
-  const [sortBy, setSortBy] = useState<string>("smart");
+  const [sortBy, setSortBy] = useState<string>(initial?.sort ?? "smart");
+
+  // Encodes the current filtered view so an item opened from here can send the
+  // user back to exactly this list (same tab, search, filters & sort).
+  const fromParam = useMemo(() => {
+    const p = new URLSearchParams();
+    if (category !== "weekly") p.set("category", category);
+    if (status !== "all") p.set("status", status);
+    if (stage !== "all") p.set("stage", stage);
+    if (holder !== "all") p.set("holder", holder);
+    if (query.trim()) p.set("q", query.trim());
+    if (sortBy !== "smart") p.set("sort", sortBy);
+    const qs = p.toString();
+    return encodeURIComponent(`/et/items${qs ? `?${qs}` : ""}`);
+  }, [category, status, stage, holder, query, sortBy]);
+  const itemHref = (id: string) => `/et/items/${id}?from=${fromParam}`;
 
   const holders = useMemo(() => {
     const set = new Set<string>();
@@ -269,7 +288,7 @@ export default function EtItemsList({ items, initial }: Props) {
               return (
                 <tr key={row.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800">
                   <td className="px-3 lg:px-4 py-3 max-w-[360px]">
-                    <Link href={`/et/items/${row.id}`} className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400" title={row.title}>
+                    <Link href={itemHref(row.id)} className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400" title={row.title}>
                       <span className="truncate">{row.title}</span>
                       {row.stopped && (
                         <span className="flex-shrink-0 rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300">Stopped</span>
@@ -302,7 +321,7 @@ export default function EtItemsList({ items, initial }: Props) {
           return (
             <Link
               key={row.id}
-              href={`/et/items/${row.id}`}
+              href={itemHref(row.id)}
               className="gloss card-hover block rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm hover:border-emerald-300 dark:hover:border-emerald-700"
             >
               <div className="flex items-start justify-between gap-2">

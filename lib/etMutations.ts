@@ -86,6 +86,20 @@ export async function updateEtItem(itemId: string, input: UpdateEtItemInput): Pr
   if (error) throw error;
 }
 
+/**
+ * Save the free-text comment / note for an item. Used by the Books section
+ * (and reused as the item's "Notes / Further process"). Reuses further_process
+ * so no schema change is needed.
+ */
+export async function setEtItemComment(itemId: string, comment: string | null): Promise<void> {
+  const supabase = await getWriteClient();
+  const { error } = await supabase
+    .from("et_items")
+    .update({ further_process: comment?.trim() || null })
+    .eq("id", itemId);
+  if (error) throw error;
+}
+
 export async function deleteEtItem(itemId: string): Promise<void> {
   const supabase = await getWriteClient();
   // et_stages cascade-delete via FK.

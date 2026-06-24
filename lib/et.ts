@@ -271,6 +271,15 @@ export function computeCurrentStep(
   // The completing final email sent => done, regardless of any unfinished stage.
   if (completingEmail) return completedResult;
 
+  // Merged-out items: this item was folded into a combined file, so its pipeline
+  // ends on a "Merged" stage and the final email is sent on that combined file —
+  // not here. Detect that by the LAST real (non-N/A) stage being Merged. When the
+  // tail is merged and no real work is still pending, the item is Complete even
+  // without its own final email.
+  const nonNa = [...stages].filter((s) => !s.not_applicable).sort((a, b) => a.seq - b.seq);
+  const endedByMerge = nonNa.length > 0 && !!nonNa[nonNa.length - 1].merged;
+  if (endedByMerge && doneCount === totalCount) return completedResult;
+
   // A stage's work "starts" when its SENT (first) date is written and "ends"
   // when the received-back date is written. So a stage that has a sent date but
   // no received-back date is the one actively in progress. When several are in
@@ -292,25 +301,25 @@ export function computeCurrentStep(
     };
   }
 
-  // No stage is in progress. If the last applicable stage has its end date, all
-  // the work is done. For wsb that still isn't "complete" until the second
-  // (sisters) final email is sent — surface that as a clear waiting state.
-  const lastApplicable = applicable[applicable.length - 1];
-  if (lastApplicable && lastApplicable.received_back_date) {
-    if (isWsb) {
-      return {
-        stage: null,
-        label: "Awaiting final email",
-        holder: null,
-        since: null,
-        completed: false,
-        unassigned: false,
-        awaitingFinalEmail: true,
-        doneCount: totalCount,
-        totalCount,
-      };
-    }
-    return completedResult;
+  // No stage is in progress. If EVERY applicable stage is received back, all the
+  // pipeline work is done — but the item is only COMPLETE once the (completing)
+  // final email is sent (handled above). Until then surface a clear "awaiting
+  // final email" state. This applies to standard items (awaiting the final email)
+  // and wsb (awaiting its second, sisters' email). NOTE: we require ALL stages
+  // done, not just the last one — finishing a later step out of order (e.g. FPR
+  // before ST/FF) must NOT look complete.
+  if (totalCount > 0 && doneCount === totalCount) {
+    return {
+      stage: null,
+      label: "Awaiting final email",
+      holder: null,
+      since: null,
+      completed: false,
+      unassigned: false,
+      awaitingFinalEmail: true,
+      doneCount: totalCount,
+      totalCount,
+    };
   }
 
   // Otherwise nobody is currently working on it: a brand-new item, or a stage

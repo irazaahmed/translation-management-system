@@ -140,7 +140,7 @@ export default async function EtDashboardPage() {
                     const isHeld = held != null && held > STEP_ALERT_DAYS;
                     return (
                       <li key={row.id} className={`py-2 ${isHeld ? "-mx-2 rounded-lg bg-red-50/60 px-2 dark:bg-red-900/10" : ""}`}>
-                        <Link href={`/et/items/${row.id}`} className="group flex items-center gap-2 sm:gap-3">
+                        <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-center gap-2 sm:gap-3">
                           {info.daysLeft != null ? (
                             <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
                               {info.daysLeft < 0 ? `${Math.abs(info.daysLeft)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
@@ -180,7 +180,7 @@ export default async function EtDashboardPage() {
                   const d = daysSince(row.current.since);
                   return (
                     <li key={row.id} className="py-2">
-                      <Link href={`/et/items/${row.id}`} className="group flex items-center gap-3">
+                      <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-center gap-3">
                         <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${d != null && d > 60 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"}`}>
                           {d ?? "—"}d
                         </span>

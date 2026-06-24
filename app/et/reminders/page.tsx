@@ -29,11 +29,17 @@ function Card({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
   const days = daysSince(row.current.since);
   const held = isHeldTooLong(row.current.since);
   const left =
-    info.daysLeft! < 0 ? `${Math.abs(info.daysLeft!)}d late` : info.daysLeft === 0 ? "Due today" : `${info.daysLeft}d left`;
+    info.daysLeft == null
+      ? "No date"
+      : info.daysLeft < 0
+        ? `${Math.abs(info.daysLeft)}d late`
+        : info.daysLeft === 0
+          ? "Due today"
+          : `${info.daysLeft}d left`;
   return (
     <div className={`gloss card-hover rounded-xl border p-4 shadow-sm ${held ? "border-red-300 dark:border-red-800/60 bg-red-50/50 dark:bg-red-900/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"}`}>
       <div className="flex items-start justify-between gap-3">
-        <Link href={`/et/items/${row.id}`} className="min-w-0 flex-1">
+        <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/reminders")}`} className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
         </Link>
@@ -100,21 +106,26 @@ export default async function EtRemindersPage() {
     error = "Failed to load. Have you run the migrations and import yet?";
   }
 
-  // Weekly documents only (wsb / fsp / wbl) — the recurring deliverables.
+  // Weekly documents only (wsb / fsp / wbl) — the recurring deliverables. Every
+  // active weekly item is shown, even ones with no confirmed delivery date yet.
   const weekly = rows.filter((r) => !r.stopped && r.derivedStatus !== "completed" && isWeeklyType(r.type));
 
   const entries: Entry[] = weekly
     .map((row) => ({ row, info: reminderInfo(row) }))
-    .filter((e) => e.info.delivery)
-    .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0));
+    .sort((a, b) => (a.info.daysLeft ?? 99999) - (b.info.daysLeft ?? 99999));
 
-  const overdue = entries.filter((e) => e.info.urgency === "overdue");
-  const week = entries.filter((e) => (e.info.daysLeft ?? 99) >= 0 && (e.info.daysLeft ?? 99) <= 7);
-  const upcoming = entries.filter((e) => (e.info.daysLeft ?? 0) > 7);
+  const dated = entries.filter((e) => e.info.delivery);
+  const overdue = dated.filter((e) => e.info.urgency === "overdue");
+  const week = dated.filter((e) => (e.info.daysLeft ?? 99) >= 0 && (e.info.daysLeft ?? 99) <= 7);
+  const upcoming = dated.filter((e) => (e.info.daysLeft ?? 0) > 7);
   const heldCount = entries.filter((e) => isHeldTooLong(e.row.current.since)).length;
 
   // Unassigned weekly tasks (like the Excel sheet's second column).
   const unassigned = weekly.filter((r) => r.derivedStatus === "pending_assignment");
+
+  // In-progress weekly items with no confirmed delivery date — shown so nothing
+  // slips through (the unassigned ones already appear in their own section below).
+  const noDate = entries.filter((e) => !e.info.delivery && e.row.derivedStatus !== "pending_assignment");
 
   return (
     <DashboardLayout>
@@ -124,6 +135,7 @@ export default async function EtRemindersPage() {
           <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Weekly Documents</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Weekly Speech Brothers · Friday Speech · Weekly Booklet — {overdue.length} overdue · {week.length} due this week · {upcoming.length} upcoming
+            {noDate.length > 0 && <span> · {noDate.length} no date</span>}
             {heldCount > 0 && (
               <span className="ml-1 font-medium text-red-600 dark:text-red-400">· {heldCount} held &gt; {HELD_ALERT_DAYS}d</span>
             )}
@@ -145,6 +157,7 @@ export default async function EtRemindersPage() {
           <Section title="⚠ Overdue" entries={overdue} tone="text-red-600 dark:text-red-400" peopleNames={peopleNames} />
           <Section title="Due this week" entries={week} tone="text-amber-600 dark:text-amber-400" peopleNames={peopleNames} />
           <Section title="Upcoming" entries={upcoming} tone="text-gray-700 dark:text-gray-300" peopleNames={peopleNames} />
+          <Section title="No delivery date set" entries={noDate} tone="text-gray-700 dark:text-gray-300" peopleNames={peopleNames} />
 
           {unassigned.length > 0 && (
             <div>
@@ -152,7 +165,7 @@ export default async function EtRemindersPage() {
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {unassigned.map((row) => (
                   <div key={row.id} className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-                    <Link href={`/et/items/${row.id}`}>
+                    <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/reminders")}`}>
                       <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
                     </Link>

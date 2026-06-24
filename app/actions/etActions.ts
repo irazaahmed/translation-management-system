@@ -8,6 +8,7 @@ import {
   updateEtItem,
   deleteEtItem,
   setEtStopped,
+  setEtItemComment,
   saveEtStages,
   patchEtStages,
   addEtReturn,
@@ -48,6 +49,27 @@ function revalidateWorkforce() {
   revalidatePath("/et/workforce");
   revalidatePath("/et");
   revalidatePath("/et/items");
+}
+
+/** Save a per-item comment / note (used by the Books section). */
+export async function saveEtItemCommentAction(
+  itemId: string,
+  comment: string | null
+): Promise<{ error?: string; success?: boolean }> {
+  if (!itemId) return { error: "Missing item id" };
+  try {
+    await requireStaff();
+    await setEtItemComment(itemId, comment);
+    revalidatePath("/et/books");
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save comment:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to edit this." };
+    }
+    return { error: "Failed to save. Please try again." };
+  }
 }
 
 export async function createEtItemAction(

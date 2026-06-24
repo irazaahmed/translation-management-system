@@ -75,9 +75,11 @@ interface Props {
   finalEmailDate?: string | null;
   finalEmailDate2?: string | null;
   type?: string | null;
+  /** Where "Save & Back" returns to (the page the user came from). */
+  backHref?: string;
 }
 
-export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEmailDate, finalEmailDate2, type }: Props) {
+export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEmailDate, finalEmailDate2, type, backHref }: Props) {
   const { canWrite } = usePermissions();
   const toast = useToast();
   const router = useRouter();
@@ -200,8 +202,10 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
       } else {
         toast({ type: "success", message: "Pipeline saved." });
         setDirty(false);
-        if (goBack) router.back();
-        else router.refresh();
+        if (goBack) {
+          if (backHref) router.push(backHref);
+          else router.back();
+        } else router.refresh();
       }
     });
   };
@@ -245,8 +249,8 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
       {/* Final email(s) — when set, the item is complete */}
       {isWsb ? (
         <>
-          {readonlyEmailCard(finalEmail, "Final email — Islamic Sisters")}
-          {readonlyEmailCard(finalEmail2, "Final email — sisters' final")}
+          {readonlyEmailCard(finalEmail, "F. Email — Islamic Brothers")}
+          {readonlyEmailCard(finalEmail2, "F. Email — Islamic Sisters")}
         </>
       ) : (
         readonlyEmailCard(finalEmail, "Final email")
@@ -313,8 +317,8 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
       {/* Final email(s) — when set, the item is Complete */}
       {isWsb ? (
         <>
-          {editableEmailCard(finalEmail, setFinal, "Final email — to Islamic Sisters", "Hands the speech to the sisters' phase (steps 9–10 above).")}
-          {editableEmailCard(finalEmail2, setFinal2, "Final email — sisters' final send", "When this date is set, the item is Complete.")}
+          {editableEmailCard(finalEmail, setFinal, "F. Email Sent for Islamic Brothers", "First final email — sent to the brothers. Then the sisters' phase (steps 9–10) begins.")}
+          {editableEmailCard(finalEmail2, setFinal2, "F. Email sent for Islamic Sisters", "Second final email — when this date is set, the item is Complete.")}
         </>
       ) : (
         editableEmailCard(finalEmail, setFinal, "Final email", "When the date is set, the item is Complete — final email sent.")

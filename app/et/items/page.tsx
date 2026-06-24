@@ -7,7 +7,14 @@ import EtItemsList from "./EtItemsList";
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{ holder?: string; stage?: string; status?: string }>;
+  searchParams: Promise<{
+    holder?: string;
+    stage?: string;
+    status?: string;
+    category?: string;
+    q?: string;
+    sort?: string;
+  }>;
 }
 
 export default async function EtItemsPage({ searchParams }: Props) {
@@ -61,7 +68,14 @@ export default async function EtItemsPage({ searchParams }: Props) {
       ) : (
         <EtItemsList
           items={rows}
-          initial={{ holder: sp.holder, stage: sp.stage, status: sp.status }}
+          initial={{
+            holder: sp.holder,
+            stage: sp.stage,
+            status: sp.status,
+            category: sp.category,
+            q: sp.q,
+            sort: sp.sort,
+          }}
         />
       )}
     </DashboardLayout>

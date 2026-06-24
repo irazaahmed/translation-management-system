@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedEtItem, getCachedEtPeople, getCachedEtReturns } from "@/lib/etData";
-import { computeAdvance, computeCurrentStep, daysSince, isStageSkipped, stageName, typeLabel } from "@/lib/et";
+import { computeAdvance, computeCurrentStep, daysSince, isStageSkipped, isWsbType, stageName, typeLabel } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
 import EtQuickAdvance from "./EtQuickAdvance";
@@ -12,6 +12,21 @@ export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
+}
+
+/** Only allow internal ET paths as a back target (avoids open-redirect). */
+function safeBackHref(from: string | undefined): string {
+  if (from && from.startsWith("/et")) return from;
+  return "/et/items";
+}
+
+function backLabel(href: string): string {
+  if (href.startsWith("/et/reminders")) return "Back to Weekly Docs";
+  if (href.startsWith("/et/books")) return "Back to Books";
+  if (href.startsWith("/et/magazine")) return "Back to Magazine";
+  if (href === "/et") return "Back to Dashboard";
+  return "Back to Work Items";
 }
 
 function fmt(d: string | null): string {
@@ -29,8 +44,10 @@ function daysBetween(a: string | null, b: string | null): number | null {
   return Math.round((db - da) / (24 * 60 * 60 * 1000));
 }
 
-export default async function EtItemDetailPage({ params }: Props) {
+export default async function EtItemDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const backHref = safeBackHref(from);
   const [item, people, returns] = await Promise.all([
     getCachedEtItem(id),
     getCachedEtPeople(),
@@ -55,11 +72,11 @@ export default async function EtItemDetailPage({ params }: Props) {
     <DashboardLayout>
       {/* Back + breadcrumb */}
       <div className="mb-4 flex items-center justify-between gap-3">
-        <Link href="/et/items" className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to Work Items
+          {backLabel(backHref)}
         </Link>
         <EtItemActions itemId={item.id} title={item.title} stopped={item.stopped} />
       </div>
@@ -105,7 +122,9 @@ export default async function EtItemDetailPage({ params }: Props) {
             </p>
           ) : current.awaitingFinalEmail ? (
             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-              All steps done — send the final email to the Islamic Sisters to complete this item.
+              {isWsbType(item.type)
+                ? "All steps done — send the 2nd final email (to the Islamic Sisters) to complete this item."
+                : "All steps done — send the final email to complete this item."}
             </p>
           ) : current.unassigned ? (
             <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -156,7 +175,7 @@ export default async function EtItemDetailPage({ params }: Props) {
 
       {/* Pipeline (editable for staff, read-only for viewers) */}
       <h2 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">Pipeline</h2>
-      <EtPipelineEditor itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} />
+      <EtPipelineEditor itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} backHref={backHref} />
 
       {/* Movement timeline — who had it, when sent, when returned, how long */}
       <h2 className="mt-6 mb-3 text-base font-semibold text-gray-900 dark:text-white">Tracking — who had it &amp; when</h2>
