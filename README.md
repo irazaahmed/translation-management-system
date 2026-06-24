@@ -1,6 +1,6 @@
 # 📖 Translation Management System (TMS)
 
-A modern web application that helps a translation team plan, track, and report progress across two workspaces: **Quranic translation** (languages, meetings & weekly schedule) and **English translation** (an 8‑stage production pipeline for books, bayans & magazine articles) — all from one clean, real‑time dashboard.
+A modern web application that helps a translation team plan, track, and report progress across two workspaces: **Quranic Translation** (languages, meetings & a weekly schedule) and **English Translation** (an 8‑stage production pipeline for books, weekly speeches, booklets & magazine articles) — all from one clean, real‑time dashboard.
 
 🌐 **Live App:** https://tms-dawateislami.vercel.app
 
@@ -15,23 +15,28 @@ A modern web application that helps a translation team plan, track, and report p
 
 ## 🎯 What is this project?
 
-Translating the Holy Quran into dozens of languages is a long, collaborative effort. Each
-language has a responsible person, a project it belongs to, and a **weekly meeting** where
-progress is reviewed. Keeping all of that organised — who met this week, who was missed, what
-was discussed, and what comes next — quickly becomes hard to manage on paper or spreadsheets.
+A large translation department runs two very different kinds of work at the same time:
 
-**TMS turns that whole process into a living, real‑time system:**
+1. **Translating the Holy Quran** into dozens of languages — each language has a responsible
+   person and a **weekly meeting** where progress is reviewed.
+2. **Producing English translations** of books, weekly speeches, booklets and magazine
+   articles — each one moves through a fixed **production pipeline**, passing from person to
+   person until it is finished and emailed out.
 
-- Every language and its translation status in one place
-- A **weekly meeting schedule** that automatically tells you which meetings happened and which
-  are overdue
-- A complete **record of every meeting** (participants, discussion points, action items)
-- **Reports** that can be copied, exported, or printed in seconds
-- **Role-based access** so the public can view progress while only authorised staff can edit
+Keeping all of that organised on paper or scattered spreadsheets quickly becomes unmanageable.
+**TMS turns both processes into one living, real‑time system** — so anyone can see, at a glance,
+who is doing what, what is due, what is stuck, and what is finished.
+
+The app has **two workspaces**, and you can switch between them from the sidebar:
+
+| Workspace | What it manages |
+|-----------|-----------------|
+| 🕌 **Quranic Translation** | Languages, weekly meetings, schedule & reports |
+| 🅴 **English Translation** | The 8‑stage production pipeline for every work item |
 
 ---
 
-## ✨ Key Features
+## 🕌 Quranic Translation — features
 
 ### 🗂️ Multi-Project & Language Tracking
 - Manage multiple translation projects (**Kanz ul Irfan, Taleem ul Quran, Sirat ul Jinan**)
@@ -52,19 +57,108 @@ was discussed, and what comes next — quickly becomes hard to manage on paper o
 - Set an **optional next meeting date** that automatically appears in **Upcoming Meetings**
 - Full meeting history for every language, with edit & delete
 
+---
+
+## 🅴 English Translation — features
+
+This module tracks every piece of work (a “**work item**”) as it travels through a fixed
+production line. The current holder and step are **calculated automatically** from the dates
+entered — they are never typed in by hand, so the status is always honest.
+
+### 🔁 The 8‑stage pipeline
+
+Each work item flows through these stages, in order:
+
+| # | Code | Stage |
+|---|------|-------|
+| 1 | TR | Translation |
+| 2 | IF | Initial Formation |
+| 3 | CM | Comparison |
+| 4 | ED | Editing |
+| 5 | NR | Native Review |
+| 6 | ST | S. Tafteesh |
+| 7 | FF | Final Formatting |
+| 8 | FPR | Final Proofreading |
+
+For every stage you record **who** has it, the date it was **sent** to them, and the date it
+came **back**. From those dates the app works out the **current step**, **who is holding it now**,
+and **how many days** it has been sitting there.
+
+- A stage can be marked **N/A** (not needed for this item) or **Merged** (its parts were merged
+  into a combined file), and those stages are skipped in the progress count.
+- **Returns** — if a missing part is noticed later, you can log a quick “sent back to fix it”
+  entry (what was missing, who got it, when it went and came back).
+
+### ✅ How an item is marked “Completed”
+
+An item is only **Completed** when its **Final email** has been sent — not just because the
+last step was filled in. This prevents items from looking finished before they really are.
+
+- If every step is done but the final email hasn't gone out yet, the item shows
+  **“Awaiting final email.”**
+- **Merged items** are the exception: when a work item is folded into a combined file (its tail
+  ends on a *Merged* stage), it counts as **Completed without its own final email**, because the
+  email is sent on the combined file instead.
+
+### 🗣️ Weekly Speech Brothers — the “Islamic Sisters” phase
+
+A **Weekly Speech Brothers (wsb)** item has two extra steps after the normal pipeline, plus a
+**second** final email:
+
+1. Pipeline finishes → **1st email: “F. Email Sent for Islamic Brothers”**
+2. Two extra steps — **Prepared for Islamic Sister** → **Final Formation**
+3. **2nd email: “F. Email sent for Islamic Sisters”** → now the item is **Completed**
+
+### 🗃️ Organised by category
+
+Work items are grouped into clear sections, each with its own page:
+
+- **📅 Weekly Docs** — recurring weekly deliverables (Weekly Speech Brothers, Friday Speech,
+  Weekly Booklet). Shows delivery countdowns, **overdue / due‑this‑week / upcoming**, items
+  **held too long** at one step, items with **no confirmed date**, and unassigned tasks.
+- **📚 Books** — the in‑process books, in the team's own order, each with an editable
+  **comment / note** (e.g. “give this book to ___ only after ___”). Completed books are hidden.
+- **📰 Magazine** — magazine articles moving through the pipeline.
+- **🗂️ Other Works** — everything else (departmental work, reprints, etc.).
+
+### 📈 Reports & downloads
+
+A dedicated **Reports** page lets you filter and download:
+
+- **Per‑person activity** — pick a person and a date range to see exactly what work they did
+  (which items and stages, with dates).
+- **Full items export** — every item with its status, current step, holder, dates and progress.
+- Download as **Excel** or **PDF** (filtered exactly the way you see it on screen).
+
+### 👥 Workforce
+
+A single **Workforce** list is the one source of truth for everyone's name. Add, edit, or
+remove team members, and record their skills, email and working hours. Renaming a person here
+**flows through the whole site automatically** (all their past and current work updates to the
+new name).
+
+### 🧭 English dashboard
+
+The English dashboard surfaces what needs attention first:
+
+1. **Weekly deliveries** — due within 7 days, or held more than 4 days at a step
+2. **Unassigned tasks** — grouped by category, so it's clear what is stalled
+3. **Longest at current step** — the items that have sat the longest
+
+> 💡 Opening an item from any list and pressing **“Save & Back”** returns you to exactly where
+> you came from — the same Weekly Docs, Books, Magazine page, or your **filtered/searched**
+> items list (your filters, search, tab and sort are kept).
+
+---
+
+## 🌟 Shared across the whole app
+
 ### 📊 Live Dashboard
-- At-a-glance stats with **animated counters** and **donut/priority charts**
-- **Recent meetings**, **languages needing attention**, and **urgent follow-ups**
+- At-a-glance stats with **animated counters** and **donut / priority charts**
 - A personalised greeting banner with a **live ticking clock (date + time)**
-- **Upcoming meetings** widget driven by scheduled follow-ups
 
 ### 🔎 Global Search
-- Search across languages, countries, people, and meeting notes from anywhere in the app
-
-### 📑 Reports & Export
-- **Daily, Weekly, and Monthly** reports plus custom date ranges
-- Grouped by language with discussion points and action items
-- **Copy to clipboard**, **export to CSV**, or **print as PDF**
+- Search across languages, countries, people, work items, and meeting notes from anywhere
 
 ### 🔐 Roles & Access Control
 - **Public view-only mode** — anyone can open the app and view progress (“Continue without login”)
@@ -75,7 +169,7 @@ was discussed, and what comes next — quickly becomes hard to manage on paper o
 ### 🎨 Polished Experience
 - Beautiful **light & dark mode** with smooth transitions
 - Fully **responsive** — works on desktop, tablet, and mobile
-- Subtle **animations**, **toast notifications**, **glassmorphism**, and loading skeletons for a fast, modern feel
+- Subtle **animations**, **toast notifications**, **glassmorphism**, and loading skeletons
 
 ---
 
@@ -88,6 +182,7 @@ was discussed, and what comes next — quickly becomes hard to manage on paper o
 | UI | React 19 + Tailwind CSS v4 |
 | Database | Supabase (PostgreSQL) |
 | Auth | Supabase Auth with role-based permissions |
+| Exports | SheetJS (Excel) · jsPDF (PDF) |
 | Hosting | Vercel (continuous deployment) |
 
 ---
@@ -112,15 +207,22 @@ TMS was built and improved in clear phases:
 - **Phase 2 — Authentication & roles:** public view, staff editing, admin user management
 - **Phase 3 — Search, exports, analytics & UI upgrade:** global search, CSV/PDF export, charts, animations
 - **Phase 4 — Weekly meeting schedule:** assigned days, automatic done/overdue reminders, upcoming meetings
-- **Latest:** a live, real-time clock (date + time) across the app
+- **Phase 5 — English Translation module:** the 8‑stage pipeline, computed current step/holder,
+  weekly documents, magazine & “other works”
+- **Phase 6 — Pipeline maturity:** workforce as the single source of holder names (with
+  cascade rename), final‑email completion gating, the Weekly Speech Brothers “Islamic Sisters”
+  phase, and merge‑complete handling
+- **Phase 7 — Books, Reports & polish:** a dedicated Books section with per‑book comments, a
+  Reports page with per‑person activity and full exports (Excel/PDF), smarter “Save & Back”
+  navigation, and a fully mobile‑responsive layout
 
 ---
 
 ## 🤝 Credits
 
 Designed and developed by **Ahmed Raza** to support the noble effort of bringing the meaning of
-the Holy Quran to people in their own languages.
+the Holy Quran — and the wider body of Islamic works — to people in their own languages.
 
 ---
 
-<p align="center"><b>Built with ❤️ for Quranic translation management</b></p>
+<p align="center"><b>Built with ❤️ for translation management</b></p>
