@@ -10,7 +10,9 @@ export type StageCode =
   // runs after the first final email, before a second (final) email.
   | "PIS" | "FFM"
   // Magazine (mgz) only — a Designing step that sits between FF and FPR.
-  | "DSN";
+  | "DSN"
+  // Books (bks) only — a final "Ready to Print" step after Final Proofreading.
+  | "RTP";
 
 export type ItemBoard = "main_2026" | "kanzul_madaris" | "magazine";
 export type ItemStatus = "pending_assignment" | "in_progress" | "completed";
@@ -55,12 +57,26 @@ export const MGZ_STAGES: { code: StageCode; seq: number; name: string }[] = (() 
   return out;
 })();
 
+/**
+ * Books (bks) pipeline. A book gets one extra step at the very end: after Final
+ * Proofreading (FPR) it is "Ready to Print" (RTP, seq 9). Every other type keeps
+ * the standard 8-stage pipeline.
+ */
+export const BKS_STAGES: { code: StageCode; seq: number; name: string }[] = [
+  ...STAGES,
+  { code: "RTP", seq: 9, name: "Ready to Print" },
+];
+
 const ALL_STAGES = [...STAGES, ...WSB_EXTRA_STAGES];
 
-// Every distinct stage code (base + sisters phase + magazine designing) for
-// name/seq lookup. The seq here is a fallback only — actual ordering uses the
-// per-row seq, which is type-aware (see stageSeq / stagesForType).
-const STAGE_DEFS = [...ALL_STAGES, { code: "DSN" as StageCode, seq: 8, name: "Designing" }];
+// Every distinct stage code (base + sisters phase + magazine designing + books
+// ready-to-print) for name/seq lookup. The seq here is a fallback only — actual
+// ordering uses the per-row seq, which is type-aware (see stageSeq / stagesForType).
+const STAGE_DEFS = [
+  ...ALL_STAGES,
+  { code: "DSN" as StageCode, seq: 8, name: "Designing" },
+  { code: "RTP" as StageCode, seq: 9, name: "Ready to Print" },
+];
 
 export const STAGE_BY_CODE: Record<StageCode, { seq: number; name: string }> =
   Object.fromEntries(STAGE_DEFS.map((s) => [s.code, { seq: s.seq, name: s.name }])) as Record<
@@ -123,15 +139,22 @@ export function isMagazineDesignType(type: string | null | undefined): boolean {
   return (type || "").toLowerCase() === "mgz";
 }
 
+/** True for Books items, which have the extra "Ready to Print" step (RTP). */
+export function isBooksType(type: string | null | undefined): boolean {
+  return (type || "").toLowerCase() === "bks";
+}
+
 /**
  * The pipeline stages for a given content type. wsb gets the 2 extra sisters
- * stages; magazine (mgz) gets a Designing step inserted between FF and FPR.
+ * stages; magazine (mgz) gets a Designing step inserted between FF and FPR;
+ * books (bks) get a final "Ready to Print" step after FPR.
  */
 export function stagesForType(
   type: string | null | undefined
 ): { code: StageCode; seq: number; name: string }[] {
   if (isWsbType(type)) return ALL_STAGES;
   if (isMagazineDesignType(type)) return MGZ_STAGES;
+  if (isBooksType(type)) return BKS_STAGES;
   return STAGES;
 }
 
@@ -625,6 +648,7 @@ export function stageBadgeClasses(stage: StageCode | null, completed = false): s
     FPR: "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-900/20 dark:text-rose-400",
     PIS: "bg-pink-50 text-pink-700 ring-pink-600/20 dark:bg-pink-900/20 dark:text-pink-400",
     FFM: "bg-indigo-50 text-indigo-700 ring-indigo-600/20 dark:bg-indigo-900/20 dark:text-indigo-400",
+    RTP: "bg-slate-100 text-slate-700 ring-slate-600/20 dark:bg-slate-800 dark:text-slate-300",
   };
   return map[stage];
 }
