@@ -19,7 +19,7 @@ import {
   getCachedEtItemRows,
   getCachedEtItemsWithStages,
 } from "@/lib/etData";
-import { computeCurrentStep, daysSince, effectiveWordCount, reminderInfo, typeLabel, wsbDeduction } from "@/lib/et";
+import { computeCurrentStep, daysSince, effectiveWordCount, reminderInfo, stageName, typeLabel, wsbDeduction } from "@/lib/et";
 
 /**
  * Tool layer for the AI assistant. The model decides which of these to call;
@@ -169,7 +169,7 @@ export const functionDeclarations = [
   {
     name: "get_et_workload",
     description:
-      "Who is holding which English Translation items right now, grouped by person. Use for 'Sagheer ke paas kitne kaam hain', 'kis ke paas kitna kaam hai', 'who is busiest'. Optionally pass a person name to get just their items.",
+      "Who is holding English Translation items right now. With NO person it returns each holder with their item COUNT only (use for 'kis ke paas kitne items', 'who is busiest', 'kitne item abhi kis ke paas hain'), plus total_held_items and unassigned_items. With a person name it returns that person's actual items (title, step, days_at_step, delivery) — use this when the user names a person or asks WHICH items someone has.",
     parameters: {
       type: "object",
       properties: {
@@ -181,11 +181,11 @@ export const functionDeclarations = [
   {
     name: "get_et_reminders",
     description:
-      "Upcoming and overdue English Translation deliveries, soonest first. Use for 'is hafte kya deliver karna hai', 'what English work is due', 'kya overdue hai'.",
+      "English Translation deliveries by due date. Returns next_delivery (the single nearest upcoming item with its step + holder — use for 'next delivery konsa item / kis step par hai'), an overdue list, and a due_within list bounded by within_days (use for 'delivery 10 din se kam waale kitne items', 'is hafte kya deliver karna hai', 'kya overdue hai'). Pass within_days to match the user's window (e.g. 10).",
     parameters: {
       type: "object",
       properties: {
-        within_days: { type: "integer", description: "Optional horizon in days (default 14). Overdue items are always included." },
+        within_days: { type: "integer", description: "Horizon in days for the due_within list (default 14). Set it to the number the user mentions, e.g. 10. Overdue and next_delivery are always returned regardless." },
       },
       required: [],
     },
@@ -461,40 +461,82 @@ async function getEtOverview() {
 
 async function getEtWorkload(args: ToolArgs) {
   const person = str(args.person);
-  const rows = (await getCachedEtItemRows()).filter((r) => !r.stopped && r.derivedStatus !== "completed" && r.current.holder);
+  const active = (await getCachedEtItemRows()).filter(
+    (r) => !r.stopped && r.derivedStatus !== "completed"
+  );
+  const held = active.filter((r) => r.current.holder);
 
+  // One person: list exactly which items they hold, with step + delivery.
   if (person) {
-    const items = rows
+    const items = held
       .filter((r) => r.current.holder!.toLowerCase().includes(person.toLowerCase()))
-      .map((r) => ({ title: r.title, current_step: r.current.label, days_at_step: daysSince(r.current.since) }));
+      .map((r) => {
+        const info = reminderInfo(r);
+        return {
+          title: r.title,
+          type: typeLabel(r.type),
+          current_step: r.current.label,
+          days_at_step: daysSince(r.current.since),
+          delivery_date: info.delivery,
+          days_left: info.daysLeft,
+        };
+      });
     return { person, count: items.length, items };
   }
 
-  const map = new Map<string, number>();
-  rows.forEach((r) => map.set(r.current.holder!, (map.get(r.current.holder!) || 0) + 1));
-  const workload = [...map.entries()]
+  // Everyone: just each holder with their item COUNT (kept compact so the
+  // request stays within the model's per-minute token budget). To see WHICH
+  // items a person holds, call again with that person's name.
+  const counts = new Map<string, number>();
+  for (const r of held) counts.set(r.current.holder!, (counts.get(r.current.holder!) || 0) + 1);
+  const workload = [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([name, count]) => ({ person: name, active_items: count }));
-  return { people: workload.length, workload };
+    .map(([person, active_items]) => ({ person, active_items }));
+
+  return {
+    people: workload.length,
+    total_held_items: held.length,
+    unassigned_items: active.filter((r) => !r.current.holder).length,
+    workload,
+    note: "Per-person counts only. For the actual item titles of one person, call get_et_workload with that person's name.",
+  };
 }
 
 async function getEtReminders(args: ToolArgs) {
   const within = typeof args.within_days === "number" ? (args.within_days as number) : 14;
   const rows = await getCachedEtItemRows();
-  const entries = rows
+  const all = rows
     .filter((r) => !r.stopped && r.derivedStatus !== "completed")
     .map((r) => ({ r, info: reminderInfo(r) }))
-    .filter((x) => x.info.delivery && (x.info.daysLeft! < 0 || x.info.daysLeft! <= within))
-    .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0))
-    .map(({ r, info }) => ({
-      title: r.title,
-      delivery_date: info.delivery,
-      days_left: info.daysLeft,
-      urgency: info.urgency,
-      current_step: r.current.label,
-      holder: r.current.holder,
-    }));
-  return { within_days: within, count: entries.length, reminders: entries };
+    .filter((x) => x.info.delivery != null)
+    .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0));
+
+  const shape = ({ r, info }: (typeof all)[number]) => ({
+    title: r.title,
+    type: typeLabel(r.type),
+    delivery_date: info.delivery,
+    days_left: info.daysLeft,
+    urgency: info.urgency,
+    current_step: r.current.label,
+    holder: r.current.holder,
+  });
+
+  const overdue = all.filter((x) => (x.info.daysLeft ?? 0) < 0);
+  const upcoming = all.filter((x) => (x.info.daysLeft ?? 0) >= 0);
+  const dueWithin = upcoming.filter((x) => (x.info.daysLeft ?? 0) <= within);
+
+  // Cap the lists so the payload stays within the model's token budget; the
+  // counts are always exact even when the lists are trimmed.
+  const CAP = 15;
+  return {
+    within_days: within,
+    // The single nearest future delivery — answers "next delivery konsa item".
+    next_delivery: upcoming.length ? shape(upcoming[0]) : null,
+    overdue_count: overdue.length,
+    overdue: overdue.slice(0, CAP).map(shape),
+    due_within_count: dueWithin.length,
+    due_within: dueWithin.slice(0, CAP).map(shape),
+  };
 }
 
 async function findEtItem(args: ToolArgs) {
@@ -505,14 +547,19 @@ async function findEtItem(args: ToolArgs) {
   const matches = rows
     .filter((r) => r.title.toLowerCase().includes(ql))
     .slice(0, 8)
-    .map((r) => ({
-      id: r.id,
-      title: r.title,
-      type: typeLabel(r.type),
-      current_step: r.current.label,
-      holder: r.current.holder,
-      status: r.derivedStatus,
-    }));
+    .map((r) => {
+      const info = reminderInfo(r);
+      return {
+        id: r.id,
+        title: r.title,
+        type: typeLabel(r.type),
+        current_step: r.current.label,
+        holder: r.current.holder,
+        status: r.derivedStatus,
+        delivery_date: info.delivery,
+        days_left: info.daysLeft,
+      };
+    });
   if (matches.length === 0) return { matches: [], message: "No English Translation item matched that title." };
   return { matches };
 }
@@ -524,7 +571,10 @@ async function getEtItem(args: ToolArgs) {
   const item = items.find((i) => i.id === id);
   if (!item) return { error: "No item found for that id." };
 
-  const current = computeCurrentStep(item.stages);
+  // Pass the final-email dates so an item completed by its final email shows as
+  // completed (wsb completes on the SECOND final email).
+  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
+  const info = reminderInfo(item);
   return {
     title: item.title,
     type: typeLabel(item.type),
@@ -540,12 +590,18 @@ async function getEtItem(args: ToolArgs) {
     at_step_since: current.since,
     days_at_step: daysSince(current.since),
     progress: `${current.doneCount}/${current.totalCount}`,
+    received_date: item.received_date,
+    delivery_date: info.delivery,
+    days_left: info.daysLeft,
+    final_email_date: item.final_email_date_2 || item.final_email_date,
     stages: item.stages.map((s) => ({
-      stage: s.stage,
+      stage: stageName(s.stage),
+      code: s.stage,
       person: s.person,
       sent: s.sent_date,
       received_back: s.received_back_date,
       not_applicable: s.not_applicable,
+      merged: s.merged,
     })),
   };
 }

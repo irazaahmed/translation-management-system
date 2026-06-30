@@ -59,11 +59,16 @@ READING — answering questions NEVER needs login. Just call the tool and reply:
 - "last/previous meeting of a named language / aakhri meeting kab/kya hui" -> get_last_meeting
 - "who do I meet today / aaj kis se meeting hai / aaj ki meetings / Monday ko kin se meeting / is hafte ka schedule / kal kis se" -> get_schedule (omit day for today; pass a weekday name for another day; pass "week" for the whole week). This is the planned recurring schedule — do NOT answer schedule questions with get_last_meeting.
 
-ENGLISH TRANSLATION module questions:
-- "English translation ka kya haal / overall English work status / how many books in progress" -> get_et_overview
-- "kis ke paas kitna kaam / Sagheer ke paas kitne items / who is busiest" -> get_et_workload (pass person to filter)
-- "is hafte kya deliver karna hai / what English work is due / kya overdue hai" -> get_et_reminders
-- a specific English book/bayan/article by name -> find_et_item FIRST (get its id), then get_et_item for its full pipeline. Do NOT use find_language for English-module items.
+ENGLISH TRANSLATION module questions — pick the tool by intent:
+- Overall status / counts ("English translation ka kya haal", "how many books in progress", "kitne complete/active/unassigned") -> get_et_overview.
+- Who has what ("kitne item abhi kis ke paas hain", "kis ke paas kitne/konse kaam", "who is busiest") -> get_et_workload with NO person. For one named person ("Sagheer ke paas kitne items") -> get_et_workload with that person.
+- Deliveries / deadlines:
+  • "next delivery konsa item / kis step par hai" -> get_et_reminders, then use next_delivery.
+  • "delivery 10 din se kam waale kitne items" / "kitne items hain jin ki delivery X days se kam hai" -> get_et_reminders with within_days = X, then use due_within (its count + list).
+  • "kya overdue hai / is hafte kya deliver karna hai" -> get_et_reminders (overdue and due_within).
+- A specific item by name (book/bayan/article/report) -> find_et_item FIRST to get its id, then get_et_item for the full pipeline (every stage, holder, dates, delivery, words). Do NOT use find_language for English-module items.
+
+ANSWER QUALITY (very important): always answer from the tool data — give the EXACT number, then the relevant names/titles/steps/dates. Never guess or say "I don't have access"; if a tool returned the data, state it. For counts, lead with the figure (e.g. "3 items"). For "kis ke paas kitne items", give the total then each person with their COUNT (e.g. "Sagheer: 23, Mehmood: 4, …) — do NOT list every item title unless the user asks for the list or names one person. For a single named person, list their items (title + step). For a next/specific delivery, name the item, its current step, holder, and days left. For "delivery X din se kam", use due_within and give the count + each item with days_left. wsb word counts are already net (pre-translated words removed). Keep it tight and well-formatted (short lines or a small list), in the user's language/script.
 Do NOT ask the user to log in for information questions. Never refuse a question because of login.
 
 WRITING — only these two change data and require logged-in staff:
@@ -78,8 +83,9 @@ async function callGroq(messages: OpenAIMessage[]): Promise<OpenAIMessage> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("MISSING_KEY");
 
-  // Retry transient rate limits (429) using the wait time Groq suggests.
-  const MAX_ATTEMPTS = 3;
+  // Retry transient errors: 429 rate limits and Llama's occasional malformed
+  // tool calls (400 tool_use_failed).
+  const MAX_ATTEMPTS = 4;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -93,7 +99,7 @@ async function callGroq(messages: OpenAIMessage[]): Promise<OpenAIMessage> {
         tools,
         tool_choice: "auto",
         temperature: 0.3,
-        max_tokens: 800,
+        max_tokens: 1500,
       }),
     });
 
@@ -111,6 +117,14 @@ async function callGroq(messages: OpenAIMessage[]): Promise<OpenAIMessage> {
       const m = body.match(/try again in ([\d.]+)s/i);
       const waitSec = m ? Math.min(parseFloat(m[1]) + 0.5, 20) : 3;
       await sleep(waitSec * 1000);
+      continue;
+    }
+
+    // Llama on Groq occasionally emits a tool call in the wrong format, which
+    // Groq rejects with 400 "tool_use_failed". This is usually transient —
+    // retry a couple of times before surfacing an error.
+    if (res.status === 400 && /tool_use_failed/.test(body) && attempt < MAX_ATTEMPTS) {
+      await sleep(500);
       continue;
     }
 
@@ -147,7 +161,11 @@ export async function runAssistant(messages: ChatMessage[]): Promise<string> {
     for (const call of calls) {
       let args: Record<string, unknown> = {};
       try {
-        args = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+        // Groq may send arguments as the literal "null" or a non-object for
+        // no-arg tools; JSON.parse("null") is null, so coerce to {} to avoid
+        // tools crashing on args.<prop>.
+        const parsed = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+        args = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
       } catch {
         args = {};
       }
