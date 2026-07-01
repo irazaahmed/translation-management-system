@@ -116,6 +116,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
   const [person, setPerson] = useState("all");
   const [category, setCategory] = useState("all");
   const [stage, setStage] = useState("all");
+  const [status, setStatus] = useState("all");
   const [itemId, setItemId] = useState("");
   const [itemQuery, setItemQuery] = useState("");
   const [itemOpen, setItemOpen] = useState(false);
@@ -234,8 +235,14 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
     const rows = items.filter((i) => {
       if (person !== "all" && i.holder !== person) return false;
       if (category !== "all" && i.category !== category) return false;
+      if (status !== "all" && i.status !== status) return false;
       if (stage !== "all" && i.stageCode !== stage) return false;
-      if (!allDates && !inRange(i.received, from, to)) return false;
+      // For completed items the range means "completed within" — so match the
+      // completion (final email) date, not the received date.
+      if (!allDates) {
+        const rangeDate = status === "Completed" ? i.finalEmail : i.received;
+        if (!inRange(rangeDate, from, to)) return false;
+      }
       return true;
     });
     return rows.sort((a, b) => {
@@ -250,7 +257,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
         default: return cmpDate(a.received, b.received, "desc");
       }
     });
-  }, [items, person, category, stage, from, to, allDates, sortBy]);
+  }, [items, person, category, status, stage, from, to, allDates, sortBy]);
 
   const isActivity = reportType === "activity";
   const count = isSingle ? singleRows.length : isActivity ? activityRows.length : itemRows.length;
@@ -320,9 +327,11 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
       return parts.join("   ·   ");
     }
     parts.push(`Person: ${person === "all" ? "All" : person}`);
+    if (!isActivity) parts.push(`Status: ${status === "all" ? "All" : status}`);
     parts.push(`Category: ${category === "all" ? "All" : category}`);
     parts.push(`Stage: ${stage === "all" ? "All" : `${stage} · ${stageLabelFor(stage)}`}`);
-    parts.push(`Period: ${allDates ? "All dates" : `${from} → ${to}`}`);
+    const periodBasis = !isActivity && status === "Completed" ? "Completed" : "Received";
+    parts.push(`Period${allDates ? "" : ` (${periodBasis})`}: ${allDates ? "All dates" : `${from} → ${to}`}`);
     const sortLabel = sortOptions.find((o) => o.value === sortBy)?.label ?? sortBy;
     parts.push(`Sorted by: ${sortLabel}`);
     return parts.join("   ·   ");
@@ -578,7 +587,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
           </div>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className={`grid gap-3 sm:grid-cols-2 ${isActivity ? "lg:grid-cols-5" : "lg:grid-cols-6"}`}>
               <div>
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">{isActivity ? "Person" : "Current holder"}</label>
                 <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className={`${selectCls} mt-1 w-full`}>
@@ -588,6 +597,17 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
                   ))}
                 </select>
               </div>
+              {!isActivity && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</label>
+                  <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={`${selectCls} mt-1 w-full`}>
+                    <option value="all">All statuses</option>
+                    <option value="Completed">Completed</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Unassigned">Unassigned</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Stage</label>
                 <select aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value)} className={`${selectCls} mt-1 w-full`}>
