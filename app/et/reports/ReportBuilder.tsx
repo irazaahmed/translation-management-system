@@ -45,16 +45,32 @@ export interface ItemStageRow {
   status: string;
 }
 
+/** One logged "return to fix a missing part" event, joined with its item. */
+export interface ReturnReportRow {
+  itemId: string;
+  itemTitle: string;
+  type: string;
+  category: string;
+  stage: string | null;
+  stageName: string;
+  person: string;
+  note: string;
+  given: string | null;
+  back: string | null;
+  status: string;
+}
+
 interface Props {
   activity: ActivityRow[];
   items: ItemReportRow[];
   itemStages: ItemStageRow[];
+  returns: ReturnReportRow[];
   people: string[];
   defaultFrom: string;
   defaultTo: string;
 }
 
-type ReportType = "activity" | "items" | "single";
+type ReportType = "activity" | "items" | "single" | "returns";
 
 function fmt(d: string | null): string {
   if (!d) return "";
@@ -106,12 +122,20 @@ const ITEM_SORTS = [
   { value: "title", label: "Title (A–Z)" },
 ];
 
+const RETURN_SORTS = [
+  { value: "given-desc", label: "Return date (newest)" },
+  { value: "given-asc", label: "Return date (oldest)" },
+  { value: "count-desc", label: "Most returns" },
+  { value: "title", label: "Item title (A–Z)" },
+  { value: "person", label: "Returned to (A–Z)" },
+];
+
 const DEFAULT_SORT = "received-desc";
 
 /** Pipeline order for sorting the Stage filter (incl. magazine DSN, wsb PIS/FFM). */
 const STAGE_CODE_ORDER = ["TR", "IF", "CM", "ED", "NR", "ST", "FF", "DSN", "FPR", "PIS", "FFM"];
 
-export default function ReportBuilder({ activity, items, itemStages, people, defaultFrom, defaultTo }: Props) {
+export default function ReportBuilder({ activity, items, itemStages, returns, people, defaultFrom, defaultTo }: Props) {
   const [reportType, setReportType] = useState<ReportType>("activity");
   const [person, setPerson] = useState("all");
   const [category, setCategory] = useState("all");
@@ -120,6 +144,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
   const [itemId, setItemId] = useState("");
   const [itemQuery, setItemQuery] = useState("");
   const [itemOpen, setItemOpen] = useState(false);
+  const [returnItemId, setReturnItemId] = useState("");
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [allDates, setAllDates] = useState(false);
@@ -127,13 +152,16 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
   const [busy, setBusy] = useState<"" | "xlsx" | "pdf">("");
 
   const isSingle = reportType === "single";
-  const sortOptions = reportType === "activity" ? ACTIVITY_SORTS : ITEM_SORTS;
+  const isReturns = reportType === "returns";
+  const isReturnDetail = isReturns && returnItemId !== "";
+  const sortOptions = reportType === "activity" ? ACTIVITY_SORTS : isReturns ? RETURN_SORTS : ITEM_SORTS;
 
-  // Switching report type: keep the sort if it still exists, else reset.
+  // Switching report type: keep the sort if it still exists, else reset to that
+  // report's first sort option.
   const switchReportType = (t: ReportType) => {
     setReportType(t);
-    const valid = (t === "activity" ? ACTIVITY_SORTS : ITEM_SORTS).some((o) => o.value === sortBy);
-    if (!valid) setSortBy(DEFAULT_SORT);
+    const opts = t === "activity" ? ACTIVITY_SORTS : t === "returns" ? RETURN_SORTS : ITEM_SORTS;
+    if (!opts.some((o) => o.value === sortBy)) setSortBy(t === "returns" ? RETURN_SORTS[0].value : DEFAULT_SORT);
   };
 
   // Items the picker can choose from (single-item report), A–Z by title.
@@ -259,12 +287,81 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
     });
   }, [items, person, category, status, stage, from, to, allDates, sortBy]);
 
+  // Distinct items that have at least one return — the dropdown for the Returns
+  // report's drill-down. Built from all returns so the choice stays stable.
+  const returnItemOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    returns.forEach((r) => { if (!map.has(r.itemId)) map.set(r.itemId, r.itemTitle); });
+    return [...map.entries()]
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [returns]);
+
+  // Summary rows: one per item that had a return within the current filters —
+  // how many, how many still out, and the latest return date.
+  const returnSummary = useMemo(() => {
+    interface G { itemId: string; title: string; type: string; category: string; count: number; out: number; last: string | null; }
+    const m = new Map<string, G>();
+    for (const r of returns) {
+      if (person !== "all" && r.person !== person) continue;
+      if (category !== "all" && r.category !== category) continue;
+      if (!allDates && !inRange(r.given, from, to)) continue;
+      const g = m.get(r.itemId) ?? { itemId: r.itemId, title: r.itemTitle, type: r.type, category: r.category, count: 0, out: 0, last: null };
+      g.count += 1;
+      if (!r.back) g.out += 1;
+      if (r.given && (!g.last || r.given > g.last)) g.last = r.given;
+      m.set(r.itemId, g);
+    }
+    const rows = [...m.values()];
+    rows.sort((a, b) => {
+      switch (sortBy) {
+        case "given-asc": return cmpDate(a.last, b.last, "asc");
+        case "title": return a.title.localeCompare(b.title);
+        case "count-desc": return b.count - a.count || a.title.localeCompare(b.title);
+        case "given-desc":
+        case "person":
+        default: return cmpDate(a.last, b.last, "desc");
+      }
+    });
+    return rows;
+  }, [returns, person, category, from, to, allDates, sortBy]);
+
+  // Detail rows: the chosen item's COMPLETE return history (all of it, ignoring
+  // the person/date filters) — when it went back, to whom, and for what.
+  const returnDetail = useMemo(() => {
+    if (!returnItemId) return [];
+    const rows = returns.filter((r) => r.itemId === returnItemId);
+    rows.sort((a, b) => {
+      switch (sortBy) {
+        case "given-asc": return cmpDate(a.given, b.given, "asc");
+        case "person": return (a.person || "").localeCompare(b.person || "");
+        case "title": return (a.stage || "").localeCompare(b.stage || "");
+        case "given-desc":
+        case "count-desc":
+        default: return cmpDate(a.given, b.given, "desc");
+      }
+    });
+    return rows;
+  }, [returns, returnItemId, sortBy]);
+
   const isActivity = reportType === "activity";
-  const count = isSingle ? singleRows.length : isActivity ? activityRows.length : itemRows.length;
+  const count = isSingle
+    ? singleRows.length
+    : isReturns
+    ? isReturnDetail
+      ? returnDetail.length
+      : returnSummary.length
+    : isActivity
+    ? activityRows.length
+    : itemRows.length;
 
   // ---- table shapes (shared by preview + export) ----
   const header = isSingle
     ? ["Step", "Stage", "Person", "Sent", "Received", "Days", "Status"]
+    : isReturns
+    ? isReturnDetail
+      ? ["Stage", "Returned to", "What was missing", "Given", "Came back", "Days", "Status"]
+      : ["Title", "Type", "Category", "Returns", "Still out", "Last return"]
     : isActivity
     ? ["Item", "Type", "Category", "Stage", "Person", "Sent", "Received", "Days"]
     : ["Title", "Type", "Category", "Status", "Current step", "Holder", "Progress", "Delivery", "Words", "Received", "Final email"];
@@ -279,6 +376,25 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
         daysBetween(r.sent, r.received),
         r.status,
       ])
+    : isReturns
+    ? isReturnDetail
+      ? returnDetail.map((r) => [
+          r.stage ? `${r.stage} · ${r.stageName}` : "—",
+          r.person || "—",
+          r.note || "—",
+          fmt(r.given),
+          fmt(r.back),
+          daysBetween(r.given, r.back),
+          r.status,
+        ])
+      : returnSummary.map((g) => [
+          g.title,
+          g.type,
+          g.category,
+          String(g.count),
+          String(g.out),
+          fmt(g.last),
+        ])
     : isActivity
     ? activityRows.map((a) => [
         a.itemTitle,
@@ -308,14 +424,21 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
   const ORG_NAME = "Translation Management System";
   const FOOTER = "Managed By Ahmed Raza Madani — Team Lead Translation";
 
+  const returnItemTitle = returnItemOptions.find((o) => o.id === returnItemId)?.title ?? "—";
+
   const reportLabel = isSingle
     ? "Single Item — Full Step Timeline"
+    : isReturns
+    ? isReturnDetail
+      ? "Item Returns — Full History"
+      : "Returns — Items Sent Back to Fix"
     : isActivity
     ? "Per-Person Activity Report"
     : "Full Items Export";
 
   const scopeLine = () => {
     const parts: string[] = [];
+    const sortLabel = sortOptions.find((o) => o.value === sortBy)?.label ?? sortBy;
     if (isSingle) {
       parts.push(`Item: ${selectedItem ? selectedItem.title : "—"}`);
       if (selectedItem) {
@@ -326,13 +449,26 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
       }
       return parts.join("   ·   ");
     }
+    if (isReturns) {
+      if (isReturnDetail) {
+        parts.push(`Item: ${returnItemTitle}`);
+        parts.push("Scope: Complete return history (all dates)");
+        parts.push(`Sorted by: ${sortLabel}`);
+        return parts.join("   ·   ");
+      }
+      parts.push("Scope: Items with returns");
+      parts.push(`Returned to: ${person === "all" ? "All" : person}`);
+      parts.push(`Category: ${category === "all" ? "All" : category}`);
+      parts.push(`Period${allDates ? "" : " (Given)"}: ${allDates ? "All dates" : `${from} → ${to}`}`);
+      parts.push(`Sorted by: ${sortLabel}`);
+      return parts.join("   ·   ");
+    }
     parts.push(`Person: ${person === "all" ? "All" : person}`);
     if (!isActivity) parts.push(`Status: ${status === "all" ? "All" : status}`);
     parts.push(`Category: ${category === "all" ? "All" : category}`);
     parts.push(`Stage: ${stage === "all" ? "All" : `${stage} · ${stageLabelFor(stage)}`}`);
     const periodBasis = !isActivity && status === "Completed" ? "Completed" : "Received";
     parts.push(`Period${allDates ? "" : ` (${periodBasis})`}: ${allDates ? "All dates" : `${from} → ${to}`}`);
-    const sortLabel = sortOptions.find((o) => o.value === sortBy)?.label ?? sortBy;
     parts.push(`Sorted by: ${sortLabel}`);
     return parts.join("   ·   ");
   };
@@ -344,6 +480,13 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
     if (isSingle) {
       const slug = (selectedItem?.title || "item").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
       return `tms-item-${slug}`;
+    }
+    if (isReturns) {
+      if (isReturnDetail) {
+        const slug = (returnItemTitle || "item").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+        return `tms-item-returns-${slug}`;
+      }
+      return `tms-returns-${allDates ? "all-dates" : `${from}_${to}`}`;
     }
     const who = person === "all" ? "all" : person.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     const range = allDates ? "all-dates" : `${from}_${to}`;
@@ -486,7 +629,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
     <>
       {/* Report type toggle */}
       <div className="mb-4 inline-flex flex-wrap rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
-        {(["activity", "items", "single"] as ReportType[]).map((t) => (
+        {(["activity", "items", "returns", "single"] as ReportType[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -497,7 +640,7 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
                 : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             }`}
           >
-            {t === "activity" ? "Per-person activity" : t === "items" ? "Full items export" : "Single item"}
+            {t === "activity" ? "Per-person activity" : t === "items" ? "Full items export" : t === "returns" ? "Returns" : "Single item"}
           </button>
         ))}
       </div>
@@ -587,17 +730,28 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
           </div>
         ) : (
           <>
-            <div className={`grid gap-3 sm:grid-cols-2 ${isActivity ? "lg:grid-cols-5" : "lg:grid-cols-6"}`}>
+            <div className={`grid gap-3 sm:grid-cols-2 ${isActivity || isReturns ? "lg:grid-cols-5" : "lg:grid-cols-6"}`}>
+              {isReturns && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Item</label>
+                  <select aria-label="Item" value={returnItemId} onChange={(e) => setReturnItemId(e.target.value)} className={`${selectCls} mt-1 w-full`}>
+                    <option value="">All items with returns</option>
+                    {returnItemOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">{isActivity ? "Person" : "Current holder"}</label>
-                <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className={`${selectCls} mt-1 w-full`}>
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">{isReturns ? "Returned to" : isActivity ? "Person" : "Current holder"}</label>
+                <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} disabled={isReturnDetail} className={`${selectCls} mt-1 w-full disabled:opacity-50`}>
                   <option value="all">All people</option>
                   {personOptions.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
               </div>
-              {!isActivity && (
+              {!isActivity && !isReturns && (
                 <div>
                   <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</label>
                   <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={`${selectCls} mt-1 w-full`}>
@@ -608,18 +762,20 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
                   </select>
                 </div>
               )}
-              <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Stage</label>
-                <select aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value)} className={`${selectCls} mt-1 w-full`}>
-                  <option value="all">All stages</option>
-                  {stageOptions.map((s) => (
-                    <option key={s.code} value={s.code}>{s.code} · {s.name}</option>
-                  ))}
-                </select>
-              </div>
+              {!isReturns && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Stage</label>
+                  <select aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value)} className={`${selectCls} mt-1 w-full`}>
+                    <option value="all">All stages</option>
+                    {stageOptions.map((s) => (
+                      <option key={s.code} value={s.code}>{s.code} · {s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Category</label>
-                <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className={`${selectCls} mt-1 w-full`}>
+                <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} disabled={isReturnDetail} className={`${selectCls} mt-1 w-full disabled:opacity-50`}>
                   <option value="all">All categories</option>
                   {categories.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -628,11 +784,11 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">From</label>
-                <input type="date" value={from} disabled={allDates} onChange={(e) => setFrom(e.target.value)} className={`${selectCls} mt-1 w-full disabled:opacity-50`} />
+                <input type="date" value={from} disabled={allDates || isReturnDetail} onChange={(e) => setFrom(e.target.value)} className={`${selectCls} mt-1 w-full disabled:opacity-50`} />
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">To</label>
-                <input type="date" value={to} disabled={allDates} onChange={(e) => setTo(e.target.value)} className={`${selectCls} mt-1 w-full disabled:opacity-50`} />
+                <input type="date" value={to} disabled={allDates || isReturnDetail} onChange={(e) => setTo(e.target.value)} className={`${selectCls} mt-1 w-full disabled:opacity-50`} />
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -645,8 +801,8 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
                     ))}
                   </select>
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                  <input type="checkbox" checked={allDates} onChange={(e) => setAllDates(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                <label className={`inline-flex items-center gap-2 text-sm ${isReturnDetail ? "text-gray-400 dark:text-gray-600" : "text-gray-600 dark:text-gray-300"}`}>
+                  <input type="checkbox" checked={allDates} disabled={isReturnDetail} onChange={(e) => setAllDates(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50" />
                   All dates (ignore range)
                 </label>
               </div>
@@ -681,6 +837,10 @@ export default function ReportBuilder({ activity, items, itemStages, people, def
             ? itemId
               ? "This item has no stage rows yet."
               : "Select an item above to see its full step-by-step timeline."
+            : isReturns
+            ? isReturnDetail
+              ? "This item has no returns logged."
+              : "No items were returned in this period. Try “All dates”, or change the person/category."
             : "No rows for these filters. Try “All dates”, or change the person/category."}
         </div>
       ) : (

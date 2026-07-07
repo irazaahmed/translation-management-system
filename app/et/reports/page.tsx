@@ -1,9 +1,10 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedEtItemsWithStages, getCachedEtPeople } from "@/lib/etData";
+import { getCachedEtItemsWithStages, getCachedEtPeople, getCachedEtAllReturns } from "@/lib/etData";
 import {
   computeCurrentStep,
   effectiveWordCount,
+  isQuranType,
   isStageSkipped,
   itemCategory,
   reminderInfo,
@@ -11,7 +12,7 @@ import {
   typeLabel,
   CATEGORY_LABELS,
 } from "@/lib/et";
-import ReportBuilder, { type ActivityRow, type ItemReportRow, type ItemStageRow } from "./ReportBuilder";
+import ReportBuilder, { type ActivityRow, type ItemReportRow, type ItemStageRow, type ReturnReportRow } from "./ReportBuilder";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +24,37 @@ export default async function EtReportsPage() {
   let activity: ActivityRow[] = [];
   let items: ItemReportRow[] = [];
   let itemStages: ItemStageRow[] = [];
+  let returns: ReturnReportRow[] = [];
   let people: string[] = [];
   let error: string | null = null;
 
   try {
-    const [withStages, peopleRows] = await Promise.all([
+    const [withStages, peopleRows, allReturns] = await Promise.all([
       getCachedEtItemsWithStages(),
       getCachedEtPeople(),
+      getCachedEtAllReturns(),
     ]);
     people = peopleRows.map((p) => p.name);
+
+    // Return records (items sent back to fix a missing part). Skip Quran items
+    // (own module), stopped items, and any whose item was deleted.
+    for (const r of allReturns) {
+      if (r.item_stopped || !r.item_type || isQuranType(r.item_type)) continue;
+      const cat = itemCategory(r.item_type);
+      returns.push({
+        itemId: r.item_id,
+        itemTitle: r.item_title,
+        type: typeLabel(r.item_type),
+        category: CATEGORY_LABELS[cat],
+        stage: r.stage,
+        stageName: r.stage ? stageName(r.stage) : "",
+        person: r.person ?? "",
+        note: r.note ?? "",
+        given: r.sent_date,
+        back: r.received_back_date,
+        status: r.received_back_date ? "Done" : "Out",
+      });
+    }
 
     for (const item of withStages) {
       if (item.stopped) continue;
@@ -132,6 +155,7 @@ export default async function EtReportsPage() {
           activity={activity}
           items={items}
           itemStages={itemStages}
+          returns={returns}
           people={people}
           defaultFrom={defaultFrom}
           defaultTo={defaultTo}

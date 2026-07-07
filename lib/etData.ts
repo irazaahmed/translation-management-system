@@ -120,6 +120,45 @@ export const getCachedEtReturns = cache(async (itemId: string): Promise<EtReturn
   }
 });
 
+/** A return record joined with its item's title/type/stopped, for reports. */
+export interface EtReturnRow extends EtReturn {
+  item_title: string;
+  item_type: string | null;
+  item_stopped: boolean;
+}
+
+/**
+ * Every "return to fix a missing part" record across all items, newest first,
+ * joined with its item's title/type. Used by the Reports page to list items that
+ * were sent back and drill into a single item's full return history. Tolerant of
+ * the et_returns table not existing yet (returns []).
+ */
+export const getCachedEtAllReturns = cache(async (): Promise<EtReturnRow[]> => {
+  try {
+    const { data, error } = await supabase
+      .from("et_returns")
+      .select("id, item_id, stage, note, person, sent_date, received_back_date, created_at, et_items(title, type, stopped)")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      item_id: row.item_id,
+      stage: row.stage ?? null,
+      note: row.note ?? null,
+      person: row.person ?? null,
+      sent_date: row.sent_date ?? null,
+      received_back_date: row.received_back_date ?? null,
+      created_at: row.created_at,
+      item_title: row.et_items?.title ?? "(deleted item)",
+      item_type: row.et_items?.type ?? null,
+      item_stopped: !!row.et_items?.stopped,
+    })) as EtReturnRow[];
+  } catch (err) {
+    console.error("Failed to fetch all ET returns (has the migration been run?):", err);
+    return [];
+  }
+});
+
 /** Workforce people. */
 export const getCachedEtPeople = cache(async (): Promise<EtPerson[]> => {
   const { data, error } = await supabase

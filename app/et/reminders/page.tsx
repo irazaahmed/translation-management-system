@@ -115,18 +115,21 @@ export default async function EtRemindersPage() {
     .map((row) => ({ row, info: reminderInfo(row) }))
     .sort((a, b) => (a.info.daysLeft ?? 99999) - (b.info.daysLeft ?? 99999));
 
-  const dated = entries.filter((e) => e.info.delivery);
+  // Items someone is actively working on feed the dated + no-date sections.
+  // Pending assignments (nobody working on them yet) are pulled out entirely and
+  // shown on their own below — even when their title carries a delivery date, so
+  // they never get lost inside the overdue / due-this-week / upcoming lists.
+  const assigned = entries.filter((e) => e.row.derivedStatus !== "pending_assignment");
+  const dated = assigned.filter((e) => e.info.delivery);
   const overdue = dated.filter((e) => e.info.urgency === "overdue");
   const week = dated.filter((e) => (e.info.daysLeft ?? 99) >= 0 && (e.info.daysLeft ?? 99) <= 7);
   const upcoming = dated.filter((e) => (e.info.daysLeft ?? 0) > 7);
-  const heldCount = entries.filter((e) => isHeldTooLong(e.row.current.since)).length;
+  const noDate = assigned.filter((e) => !e.info.delivery);
+  const heldCount = assigned.filter((e) => isHeldTooLong(e.row.current.since)).length;
 
-  // Unassigned weekly tasks (like the Excel sheet's second column).
-  const unassigned = weekly.filter((r) => r.derivedStatus === "pending_assignment");
-
-  // In-progress weekly items with no confirmed delivery date — shown so nothing
-  // slips through (the unassigned ones already appear in their own section below).
-  const noDate = entries.filter((e) => !e.info.delivery && e.row.derivedStatus !== "pending_assignment");
+  // Unassigned weekly tasks (like the Excel sheet's second column) — kept in the
+  // delivery-sorted `entries` order so the most urgent surface first.
+  const unassigned = entries.filter((e) => e.row.derivedStatus === "pending_assignment");
 
   return (
     <DashboardLayout>
@@ -137,6 +140,7 @@ export default async function EtRemindersPage() {
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Weekly Speech Brothers · Friday Speech · Weekly Booklet — {overdue.length} overdue · {week.length} due this week · {upcoming.length} upcoming
             {noDate.length > 0 && <span> · {noDate.length} no date</span>}
+            {unassigned.length > 0 && <span> · {unassigned.length} unassigned</span>}
             {heldCount > 0 && (
               <span className="ml-1 font-medium text-red-600 dark:text-red-400">· {heldCount} held &gt; {HELD_ALERT_DAYS}d</span>
             )}
@@ -164,12 +168,17 @@ export default async function EtRemindersPage() {
             <div>
               <h2 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">⚠ Unassigned weekly tasks <span className="text-gray-400 dark:text-gray-500">({unassigned.length})</span></h2>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {unassigned.map((row) => (
+                {unassigned.map(({ row, info }) => (
                   <div key={row.id} className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
-                    <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/reminders")}`}>
-                      <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
-                    </Link>
+                    <div className="flex items-start justify-between gap-3">
+                      <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/reminders")}`} className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</p>
+                      </Link>
+                      {info.delivery && (
+                        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`} title={`Delivery ${fmt(info.delivery)}`}>{fmt(info.delivery)}</span>
+                      )}
+                    </div>
                     {row.advance && (
                       <div className="mt-2 border-t border-gray-100 dark:border-gray-800 pt-2">
                         <EtQuickAdvance compact itemId={row.id} advance={row.advance} peopleNames={peopleNames} />
