@@ -1,7 +1,7 @@
 "use server";
 
 import { requireStaff } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   createEtItem,
@@ -25,7 +25,7 @@ import {
   type StagePatch,
   type EtPersonInput,
 } from "@/lib/etMutations";
-import { parseTitleDate, type ItemPriority, type StageCode } from "@/lib/et";
+import { parseTitleDate, ET_CACHE_TAG, type ItemPriority, type StageCode } from "@/lib/et";
 
 export interface EtFormState {
   error?: string;
@@ -43,13 +43,21 @@ function parseInt0(v: string | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+// `{ expire: 0 }` = immediate expiry with read-your-own-writes, so a mutation's
+// re-render sees fresh rows at once (a string profile would be stale-while-
+// revalidate; a bare tag is deprecated in Next 16 and only allowed in actions).
+const ET_CACHE_PURGE = { expire: 0 };
+
 function revalidateEt(itemId?: string) {
+  // Drop the shared ET data cache so the next read hits Supabase for fresh rows.
+  revalidateTag(ET_CACHE_TAG, ET_CACHE_PURGE);
   revalidatePath("/et");
   revalidatePath("/et/items");
   if (itemId) revalidatePath(`/et/items/${itemId}`);
 }
 
 function revalidateWorkforce() {
+  revalidateTag(ET_CACHE_TAG, ET_CACHE_PURGE);
   revalidatePath("/et/workforce");
   revalidatePath("/et");
   revalidatePath("/et/items");
@@ -342,6 +350,7 @@ export async function deleteEtPersonAction(
 // ============================================
 
 function revalidateAssignments() {
+  revalidateTag(ET_CACHE_TAG, ET_CACHE_PURGE);
   revalidatePath("/et/workforce");
   revalidatePath("/et/workload");
 }

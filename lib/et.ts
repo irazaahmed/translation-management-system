@@ -4,6 +4,14 @@
 // A work item flows through an 8-stage pipeline. The "current step / holder"
 // is COMPUTED from the stage rows (never stored by hand).
 
+/**
+ * Cache tag for all ET data (items, stages, people, returns, assignments). The
+ * data layer tags its `unstable_cache` reads with this so repeated navigation
+ * serves from cache instead of re-querying Supabase; every mutation helper calls
+ * `revalidateTag(ET_CACHE_TAG)` to drop the cache and show fresh data at once.
+ */
+export const ET_CACHE_TAG = "et-data";
+
 export type StageCode =
   | "TR" | "IF" | "CM" | "ED" | "NR" | "ST" | "FF" | "FPR"
   // Weekly Speech Brothers (wsb) only — an extra "Islamic Sisters" phase that
