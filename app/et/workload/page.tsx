@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedEtItemsWithStages } from "@/lib/etData";
-import { activeStages, computeCurrentStep, reminderInfo, stageName, typeLabel } from "@/lib/et";
+import { getCachedEtItemsWithStages, getCachedEtAllReturns, type EtReturnRow } from "@/lib/etData";
+import { activeStages, computeCurrentStep, reminderInfo, returnBadgeLabel, stageName, typeLabel } from "@/lib/et";
 import type { EtItemWithStages } from "@/lib/et";
 import WorkloadBoard, { type WorkloadGroup, type WorkloadItem } from "./WorkloadBoard";
 
@@ -20,14 +20,18 @@ function daysSince(iso: string | null): number | null {
 
 export default async function EtWorkloadPage() {
   let items: EtItemWithStages[] = [];
+  let returns: EtReturnRow[] = [];
   let error: string | null = null;
   try {
-    items = await getCachedEtItemsWithStages();
+    const [i, r] = await Promise.all([getCachedEtItemsWithStages(), getCachedEtAllReturns()]);
+    items = i;
+    returns = r;
   } catch (err) {
     console.error("Failed to load workload:", err);
     error = "Failed to load. Have you run the migration and import yet?";
   }
 
+  const itemsById = new Map(items.map((it) => [it.id, it]));
   const byHolder = new Map<string, WorkloadItem[]>();
   const unassigned: WorkloadItem[] = [];
   let activeCount = 0;
@@ -86,6 +90,43 @@ export default async function EtWorkloadPage() {
       } else {
         unassigned.push(row);
       }
+    }
+  }
+
+  // Open returns (sent back to fix something, not yet received back) are active
+  // work too — whoever is holding the return is genuinely busy with it, even
+  // when the item's own pipeline has nothing in progress (or is even marked
+  // complete). Surface them as their own "Return" row per holder.
+  for (const r of returns) {
+    if (r.received_back_date || r.item_stopped) continue;
+    const it = itemsById.get(r.item_id);
+    const info = it ? reminderInfo(it) : { delivery: null, daysLeft: null, urgency: null };
+    const progress = it
+      ? (() => {
+          const c = computeCurrentStep(it.stages, it.final_email_date, it.final_email_date_2);
+          return `${c.doneCount}/${c.totalCount}`;
+        })()
+      : "—";
+    const row: WorkloadItem = {
+      rowId: `return-${r.id}`,
+      id: r.item_id,
+      title: r.item_title,
+      type: typeLabel(r.item_type),
+      stageCode: null,
+      stageName: returnBadgeLabel(r.stage),
+      daysHeld: daysSince(r.sent_date),
+      delivery: info.delivery,
+      daysLeft: info.daysLeft,
+      urgency: info.urgency,
+      progress,
+      isReturn: true,
+    };
+    const holder = r.person?.trim();
+    if (holder) {
+      if (!byHolder.has(holder)) byHolder.set(holder, []);
+      byHolder.get(holder)!.push(row);
+    } else {
+      unassigned.push(row);
     }
   }
 

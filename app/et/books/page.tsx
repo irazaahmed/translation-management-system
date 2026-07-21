@@ -66,6 +66,7 @@ export default async function EtBooksPage() {
       activeStageCodes: r.activeStageCodes,
       completed: r.current.completed,
       inReturn: r.inReturn,
+      returnStage: r.returnStage,
       holder: r.current.holder,
       doneCount: r.current.doneCount,
       totalCount: r.current.totalCount,
@@ -82,9 +83,14 @@ export default async function EtBooksPage() {
             {books.length} in-process book{books.length === 1 ? "" : "s"} · completed are hidden
           </p>
         </div>
-        <Link href="/et" className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-          ← Dashboard
-        </Link>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Link href="/et/books/assignments" className="btn-press inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+            Who has which book →
+          </Link>
+          <Link href="/et" className="btn-press inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+            ← Dashboard
+          </Link>
+        </div>
       </div>
 
       {error ? (

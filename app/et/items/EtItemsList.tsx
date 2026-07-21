@@ -6,6 +6,7 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   RETURN_BADGE_CLASSES,
+  returnBadgeLabel,
   STAGES,
   daysSince,
   effectiveWordCount,
@@ -43,7 +44,7 @@ function StageBadge({ row }: { row: EtItemRow }) {
   if (row.inReturn) {
     return (
       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${RETURN_BADGE_CLASSES}`}>
-        ↩ Return
+        ↩ {returnBadgeLabel(row.returnStage)}
       </span>
     );
   }
@@ -369,7 +370,7 @@ export default function EtItemsList({ items, initial }: Props) {
       {/* Mobile cards */}
       <div className="sm:hidden grid gap-3">
         {filtered.map((row) => {
-          const sb = row.inReturn ? { className: RETURN_BADGE_CLASSES, label: "Return" } : statusBadge(row.derivedStatus);
+          const sb = row.inReturn ? { className: RETURN_BADGE_CLASSES, label: returnBadgeLabel(row.returnStage) } : statusBadge(row.derivedStatus);
           return (
             <Link
               key={row.id}

@@ -7,6 +7,7 @@ import {
   isWeeklyType,
   reminderInfo,
   RETURN_BADGE_CLASSES,
+  returnBadgeLabel,
   stageBadgeClasses,
   stageChipLabel,
   typeLabel,
@@ -50,7 +51,7 @@ function Card({ row, info, peopleNames }: Entry & { peopleNames: string[] }) {
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${row.inReturn ? RETURN_BADGE_CLASSES : stageBadgeClasses(row.current.stage, row.current.completed)}`}>
-          {row.inReturn ? "↩ Return" : stageChipLabel(row.activeStageCodes, row.current.stage, row.current.label)}
+          {row.inReturn ? `↩ ${returnBadgeLabel(row.returnStage)}` : stageChipLabel(row.activeStageCodes, row.current.stage, row.current.label)}
         </span>
         {days != null && (
           <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${held ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>

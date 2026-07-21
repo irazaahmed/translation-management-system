@@ -57,6 +57,8 @@ export interface EtItemRow extends EtItem {
    * item is actively out being fixed, not "pending assignment" or "completed".
    */
   inReturn: boolean;
+  /** The stage of the item's most recent open return (for the "Return to X" badge), or null if that return didn't name one. */
+  returnStage: StageCode | null;
 }
 
 function sortStages(stages: EtStage[]): EtStage[] {
@@ -90,40 +92,48 @@ export const getCachedEtItemsWithStages = cache((): Promise<EtItemWithStages[]> 
 
 /**
  * Item ids with an open "return to fix" entry (sent back, not yet received
- * back). Tolerant of the et_returns table not existing yet (returns [] so the
- * rest of the app still loads before the migration is run).
+ * back), along with the stage that return named (if any). Ordered oldest
+ * first so that, when an item has more than one open return, the item's
+ * entry ends up holding the MOST RECENT one's stage. Tolerant of the
+ * et_returns table not existing yet (returns [] so the rest of the app still
+ * loads before the migration is run).
  */
-const loadOpenEtReturnItemIds = unstable_cache(
-  async (): Promise<string[]> => {
+const loadOpenEtReturnStagesByItem = unstable_cache(
+  async (): Promise<{ item_id: string; stage: StageCode | null }[]> => {
     const { data, error } = await supabase
       .from("et_returns")
-      .select("item_id")
-      .is("received_back_date", null);
+      .select("item_id, stage, created_at")
+      .is("received_back_date", null)
+      .order("created_at", { ascending: true });
     if (error) throw error;
-    return (data || []).map((r: any) => r.item_id as string);
+    return (data || []).map((r: any) => ({ item_id: r.item_id as string, stage: (r.stage ?? null) as StageCode | null }));
   },
-  ["et-open-return-item-ids"],
+  ["et-open-return-stages-by-item"],
   ET_CACHE
 );
 
-const getCachedOpenEtReturnItemIds = cache(async (): Promise<Set<string>> => {
+const getCachedOpenEtReturnStagesByItem = cache(async (): Promise<Map<string, StageCode | null>> => {
   try {
-    return new Set(await loadOpenEtReturnItemIds());
+    const rows = await loadOpenEtReturnStagesByItem();
+    const m = new Map<string, StageCode | null>();
+    for (const r of rows) m.set(r.item_id, r.stage);
+    return m;
   } catch (err) {
     console.error("Failed to fetch open ET returns (has the migration been run?):", err);
-    return new Set();
+    return new Map();
   }
 });
 
 /** Lightweight list rows with computed current step (no stage arrays). */
 export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
-  const [items, openReturnItemIds] = await Promise.all([
+  const [items, openReturnStagesByItem] = await Promise.all([
     getCachedEtItemsWithStages(),
-    getCachedOpenEtReturnItemIds(),
+    getCachedOpenEtReturnStagesByItem(),
   ]);
   return items.map(({ stages, ...item }) => {
     const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
-    const inReturn = openReturnItemIds.has(item.id);
+    const inReturn = openReturnStagesByItem.has(item.id);
+    const returnStage = openReturnStagesByItem.get(item.id) ?? null;
     // An open return means the item is actively out being fixed — never show
     // it as "pending assignment" or "completed" just because its own pipeline
     // stages have nothing in progress.
@@ -136,7 +146,7 @@ export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
           : "in_progress";
     const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
     const activeStageCodes = activeStages(stages).map((s) => s.stage);
-    return { ...(item as EtItem), current, derivedStatus, advance, activeStageCodes, inReturn };
+    return { ...(item as EtItem), current, derivedStatus, advance, activeStageCodes, inReturn, returnStage };
   });
 });
 

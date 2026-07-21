@@ -668,6 +668,16 @@ export function urgencyClasses(u: ReminderUrgency | null): string {
 export const RETURN_BADGE_CLASSES =
   "bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-400";
 
+/**
+ * Label for the "Return" badge. A return IS assignment — someone has it to fix
+ * — so it never reads as bare "Return"; it names the stage it was sent back to
+ * (e.g. "Return to ED") when known, falling back to plain "Return" only when
+ * the return entry itself has no stage set.
+ */
+export function returnBadgeLabel(stage: StageCode | null): string {
+  return stage ? `Return to ${stage}` : "Return";
+}
+
 /** Tailwind classes for a stage badge, colour-coded by pipeline position. */
 export function stageBadgeClasses(stage: StageCode | null, completed = false): string {
   if (completed)

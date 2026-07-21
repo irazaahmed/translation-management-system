@@ -7,6 +7,7 @@ import {
   isWeeklyType,
   reminderInfo,
   RETURN_BADGE_CLASSES,
+  returnBadgeLabel,
   stageBadgeClasses,
   urgencyClasses,
   typeLabel,
@@ -30,7 +31,7 @@ function StageChip({ row }: { row: EtItemRow }) {
   if (row.inReturn) {
     return (
       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${RETURN_BADGE_CLASSES}`}>
-        ↩ Return
+        ↩ {returnBadgeLabel(row.returnStage)}
       </span>
     );
   }

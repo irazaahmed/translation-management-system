@@ -353,6 +353,8 @@ function revalidateAssignments() {
   revalidateTag(ET_CACHE_TAG, ET_CACHE_PURGE);
   revalidatePath("/et/workforce");
   revalidatePath("/et/workload");
+  revalidatePath("/et/books");
+  revalidatePath("/et/books/assignments");
 }
 
 export async function addEtAssignmentAction(input: {

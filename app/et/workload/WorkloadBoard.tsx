@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Avatar from "@/components/Avatar";
-import { stageBadgeClasses, urgencyClasses, STEP_ALERT_DAYS, type StageCode, type ReminderUrgency } from "@/lib/et";
+import { RETURN_BADGE_CLASSES, stageBadgeClasses, urgencyClasses, STEP_ALERT_DAYS, type StageCode, type ReminderUrgency } from "@/lib/et";
 
 export interface WorkloadItem {
-  /** Unique per row (stage id, or item id for unheld items) — for React keys. */
+  /** Unique per row (stage id, return id, or item id for unheld items) — for React keys. */
   rowId: string;
   id: string;
   title: string;
@@ -18,6 +18,8 @@ export interface WorkloadItem {
   daysLeft: number | null;
   urgency: ReminderUrgency | null;
   progress: string;
+  /** True when this row is an open return (sent back to fix something), not a normal pipeline stage. */
+  isReturn?: boolean;
 }
 
 export interface WorkloadGroup {
@@ -57,10 +59,16 @@ function ItemRow({ item }: { item: WorkloadItem }) {
         href={`/et/items/${item.id}?from=${FROM}`}
         className="group flex flex-wrap items-center gap-x-2 gap-y-1"
       >
-        {item.stageCode && (
-          <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(item.stageCode)}`}>
-            {item.stageCode}
+        {item.isReturn ? (
+          <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${RETURN_BADGE_CLASSES}`}>
+            ↩ {item.stageName}
           </span>
+        ) : (
+          item.stageCode && (
+            <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(item.stageCode)}`}>
+              {item.stageCode}
+            </span>
+          )
         )}
         <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
           {item.title}
