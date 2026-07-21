@@ -58,6 +58,9 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
   const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
   const sinceDays = daysSince(current.since);
   const peopleNames = people.map((p) => p.name);
+  // An open return means the item is actively out being fixed — always show
+  // that instead of "Pending assignment" / "Completed" / a stale stage name.
+  const inReturn = returns.some((r) => !r.received_back_date);
 
   // Quick-advance data: which stage to act on next, straight from the summary.
   const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date, item.final_email_date_2);
@@ -137,7 +140,11 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
 
         {/* Current step banner */}
         <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 sm:p-4">
-          {current.completed ? (
+          {inReturn ? (
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+              ↩ Return — sent back to complete a missing/incorrect part. See “Returns” below.
+            </p>
+          ) : current.completed ? (
             <p className="text-sm font-medium text-green-700 dark:text-green-400">
               ✓ Completed{(item.final_email_date_2 || item.final_email_date) ? " — final email sent." : " — all applicable stages done."}
             </p>
@@ -242,7 +249,7 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
       )}
 
       {/* Returns — go back and complete a missed part */}
-      <EtReturns itemId={item.id} returns={returns} peopleNames={peopleNames} />
+      <EtReturns itemId={item.id} type={item.type} returns={returns} peopleNames={peopleNames} />
 
       {/* Further process notes */}
       {item.further_process && (

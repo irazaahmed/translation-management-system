@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
-import { STAGES, daysSince, isMagazineType, stageBadgeClasses, stageChipLabel } from "@/lib/et";
+import { STAGES, daysSince, isMagazineType, RETURN_BADGE_CLASSES, stageBadgeClasses, stageChipLabel } from "@/lib/et";
 import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +21,8 @@ function Article({ row, peopleNames }: { row: EtItemRow; peopleNames: string[] }
         <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/magazine")}`} className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
         </Link>
-        <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
-          {stageChipLabel(row.activeStageCodes, row.current.stage, row.current.label)}
+        <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${row.inReturn ? RETURN_BADGE_CLASSES : stageBadgeClasses(row.current.stage, row.current.completed)}`}>
+          {row.inReturn ? "↩ Return" : stageChipLabel(row.activeStageCodes, row.current.stage, row.current.label)}
         </span>
       </div>
 

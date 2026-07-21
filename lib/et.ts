@@ -664,6 +664,10 @@ export function urgencyClasses(u: ReminderUrgency | null): string {
   }
 }
 
+/** Tailwind classes for the "Return" badge — an item currently out on an open return (sent back to fix something) always shows this instead of its normal stage/status. */
+export const RETURN_BADGE_CLASSES =
+  "bg-amber-100 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-400";
+
 /** Tailwind classes for a stage badge, colour-coded by pipeline position. */
 export function stageBadgeClasses(stage: StageCode | null, completed = false): string {
   if (completed)

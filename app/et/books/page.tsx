@@ -65,6 +65,7 @@ export default async function EtBooksPage() {
       stageLabel: r.current.label,
       activeStageCodes: r.activeStageCodes,
       completed: r.current.completed,
+      inReturn: r.inReturn,
       holder: r.current.holder,
       doneCount: r.current.doneCount,
       totalCount: r.current.totalCount,

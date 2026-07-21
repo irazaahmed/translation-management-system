@@ -51,6 +51,12 @@ export interface EtItemRow extends EtItem {
    * (e.g. TR + CM). Lets cards show all active stages, not just the last.
    */
   activeStageCodes: StageCode[];
+  /**
+   * True when the item has an open "return to fix" entry (sent back, not yet
+   * received back). Takes priority over the normal stage/status display — the
+   * item is actively out being fixed, not "pending assignment" or "completed".
+   */
+  inReturn: boolean;
 }
 
 function sortStages(stages: EtStage[]): EtStage[] {
@@ -82,19 +88,55 @@ const loadEtItemsWithStages = unstable_cache(
 /** All items with their stages, fully loaded (per-request deduped + data-cached). */
 export const getCachedEtItemsWithStages = cache((): Promise<EtItemWithStages[]> => loadEtItemsWithStages());
 
+/**
+ * Item ids with an open "return to fix" entry (sent back, not yet received
+ * back). Tolerant of the et_returns table not existing yet (returns [] so the
+ * rest of the app still loads before the migration is run).
+ */
+const loadOpenEtReturnItemIds = unstable_cache(
+  async (): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from("et_returns")
+      .select("item_id")
+      .is("received_back_date", null);
+    if (error) throw error;
+    return (data || []).map((r: any) => r.item_id as string);
+  },
+  ["et-open-return-item-ids"],
+  ET_CACHE
+);
+
+const getCachedOpenEtReturnItemIds = cache(async (): Promise<Set<string>> => {
+  try {
+    return new Set(await loadOpenEtReturnItemIds());
+  } catch (err) {
+    console.error("Failed to fetch open ET returns (has the migration been run?):", err);
+    return new Set();
+  }
+});
+
 /** Lightweight list rows with computed current step (no stage arrays). */
 export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
-  const items = await getCachedEtItemsWithStages();
+  const [items, openReturnItemIds] = await Promise.all([
+    getCachedEtItemsWithStages(),
+    getCachedOpenEtReturnItemIds(),
+  ]);
   return items.map(({ stages, ...item }) => {
     const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
-    const derivedStatus: ItemStatus = current.completed
-      ? "completed"
-      : current.unassigned
-        ? "pending_assignment"
-        : "in_progress";
+    const inReturn = openReturnItemIds.has(item.id);
+    // An open return means the item is actively out being fixed — never show
+    // it as "pending assignment" or "completed" just because its own pipeline
+    // stages have nothing in progress.
+    const derivedStatus: ItemStatus = inReturn
+      ? "in_progress"
+      : current.completed
+        ? "completed"
+        : current.unassigned
+          ? "pending_assignment"
+          : "in_progress";
     const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
     const activeStageCodes = activeStages(stages).map((s) => s.stage);
-    return { ...(item as EtItem), current, derivedStatus, advance, activeStageCodes };
+    return { ...(item as EtItem), current, derivedStatus, advance, activeStageCodes, inReturn };
   });
 });
 

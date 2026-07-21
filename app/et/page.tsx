@@ -6,6 +6,7 @@ import {
   daysSince,
   isWeeklyType,
   reminderInfo,
+  RETURN_BADGE_CLASSES,
   stageBadgeClasses,
   urgencyClasses,
   typeLabel,
@@ -26,6 +27,13 @@ function fmt(d: string | null): string {
 }
 
 function StageChip({ row }: { row: EtItemRow }) {
+  if (row.inReturn) {
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${RETURN_BADGE_CLASSES}`}>
+        ↩ Return
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(row.current.stage, row.current.completed)}`}>
       {row.current.stage ? `${row.current.stage}` : row.current.label}

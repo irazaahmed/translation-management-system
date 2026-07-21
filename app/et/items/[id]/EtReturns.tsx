@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
-import { STAGES, stageName, type EtReturn, type StageCode } from "@/lib/et";
+import { stagesForType, stageName, type EtReturn, type StageCode } from "@/lib/et";
 import {
   addEtReturnAction,
   updateEtReturnAction,
@@ -23,22 +23,28 @@ function fmt(d: string | null): string {
 
 interface Props {
   itemId: string;
+  type: string | null;
   returns: EtReturn[];
   peopleNames: string[];
 }
 
-export default function EtReturns({ itemId, returns, peopleNames }: Props) {
+export default function EtReturns({ itemId, type, returns, peopleNames }: Props) {
   const { canWrite } = usePermissions();
   const toast = useToast();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const stages = stagesForType(type);
 
   const [stage, setStage] = useState<StageCode | "">("");
   const [note, setNote] = useState("");
   const [person, setPerson] = useState("");
   const [sentDate, setSentDate] = useState(TODAY);
   const [receivedDate, setReceivedDate] = useState("");
+  // Per-return "came back on" date for the "mark received" action below —
+  // defaults to today but can be changed to any date via the date picker.
+  const [backDates, setBackDates] = useState<Record<string, string>>({});
+  const backDateFor = (returnId: string) => backDates[returnId] ?? TODAY;
 
   const inputCls =
     "w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none";
@@ -71,8 +77,9 @@ export default function EtReturns({ itemId, returns, peopleNames }: Props) {
   };
 
   const markBack = (returnId: string) => {
+    const date = backDateFor(returnId);
     startTransition(async () => {
-      const res = await updateEtReturnAction(itemId, returnId, TODAY);
+      const res = await updateEtReturnAction(itemId, returnId, date || TODAY);
       if (res.error) toast({ type: "error", message: res.error });
       else {
         toast({ type: "success", message: "Marked received back." });
@@ -136,7 +143,7 @@ export default function EtReturns({ itemId, returns, peopleNames }: Props) {
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Stage (optional)</label>
               <select value={stage} onChange={(e) => setStage(e.target.value as StageCode | "")} className={`mt-1 ${inputCls}`}>
                 <option value="">— none —</option>
-                {STAGES.map((s) => (
+                {stages.map((s) => (
                   <option key={s.code} value={s.code}>{s.code} · {s.name}</option>
                 ))}
               </select>
@@ -189,14 +196,24 @@ export default function EtReturns({ itemId, returns, peopleNames }: Props) {
                   {canWrite && (
                     <div className="flex flex-shrink-0 items-center gap-2">
                       {pending && (
-                        <button
-                          type="button"
-                          onClick={() => markBack(r.id)}
-                          disabled={isPending}
-                          className="rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 disabled:opacity-50"
-                        >
-                          ✓ Back today
-                        </button>
+                        <>
+                          <input
+                            type="date"
+                            value={backDateFor(r.id)}
+                            onChange={(e) =>
+                              setBackDates((d) => ({ ...d, [r.id]: e.target.value }))
+                            }
+                            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-1.5 py-1 text-[11px] text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => markBack(r.id)}
+                            disabled={isPending}
+                            className="rounded-md bg-emerald-100 dark:bg-emerald-900/30 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 disabled:opacity-50"
+                          >
+                            ✓ Back
+                          </button>
+                        </>
                       )}
                       <button
                         type="button"

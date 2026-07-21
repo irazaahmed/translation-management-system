@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
 import { saveEtItemCommentAction } from "@/app/actions/etActions";
-import { BKS_STAGES, stageBadgeClasses, stageChipLabel, type StageCode } from "@/lib/et";
+import { BKS_STAGES, RETURN_BADGE_CLASSES, stageBadgeClasses, stageChipLabel, type StageCode } from "@/lib/et";
 
 export interface BookRow {
   id: string;
@@ -16,6 +16,7 @@ export interface BookRow {
   stageLabel: string;
   activeStageCodes: StageCode[];
   completed: boolean;
+  inReturn: boolean;
   holder: string | null;
   doneCount: number;
   totalCount: number;
@@ -51,8 +52,8 @@ function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
             {book.title}
           </h3>
         </Link>
-        <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(book.stage, book.completed)}`}>
-          {stageChipLabel(book.activeStageCodes, book.stage, book.stageLabel)}
+        <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${book.inReturn ? RETURN_BADGE_CLASSES : stageBadgeClasses(book.stage, book.completed)}`}>
+          {book.inReturn ? "↩ Return" : stageChipLabel(book.activeStageCodes, book.stage, book.stageLabel)}
         </span>
       </div>
 
