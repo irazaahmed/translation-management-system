@@ -3,6 +3,13 @@
 // Safe to import from both server and client components (pure data).
 // ============================================================
 
+/**
+ * Cache tag for the per-para progress data (quran_people + para_progress).
+ * Every mutation calls `revalidateTag(QURAN_CACHE_TAG)` to drop the cache and
+ * show fresh data at once — mirrors ET_CACHE_TAG in lib/et.ts.
+ */
+export const QURAN_CACHE_TAG = "quran-para-data";
+
 /** The Quran has 30 paras (juz). */
 export const TOTAL_PARAS = 30;
 
@@ -151,6 +158,90 @@ export function buildStageMap(
         updated_at: row.updated_at ?? null,
       };
     }
+  }
+  return map;
+}
+
+// ============================================================
+// Per-para tracking (para_progress table) — who, since when, finished when.
+// ============================================================
+
+export type ParaStatus = "not_started" | "in_progress" | "done";
+
+/** A single (language, stage, para) row as read from the DB/cache. */
+export interface ParaRow {
+  stage: StageKey;
+  paraNumber: number;
+  personId: string | null;
+  personName: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  notes: string | null;
+}
+
+/** A single para's cell state for the per-language board — always present for 1..30. */
+export interface ParaCell {
+  paraNumber: number;
+  status: ParaStatus;
+  personId: string | null;
+  personName: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  notes: string | null;
+}
+
+export function paraStatusOf(row: ParaRow | null | undefined): ParaStatus {
+  if (!row) return "not_started";
+  if (row.finishedAt) return "done";
+  if (row.startedAt) return "in_progress";
+  return "not_started";
+}
+
+/** Turn a stage's sparse para_progress rows into a full 1..30 grid (missing → not started). */
+export function buildParaCells(rows: ParaRow[], stage: StageKey): ParaCell[] {
+  const byNumber = new Map(rows.filter((r) => r.stage === stage).map((r) => [r.paraNumber, r]));
+  const cells: ParaCell[] = [];
+  for (let n = 1; n <= TOTAL_PARAS; n++) {
+    const row = byNumber.get(n);
+    cells.push({
+      paraNumber: n,
+      status: paraStatusOf(row),
+      personId: row?.personId ?? null,
+      personName: row?.personName ?? null,
+      startedAt: row?.startedAt ?? null,
+      finishedAt: row?.finishedAt ?? null,
+      notes: row?.notes ?? null,
+    });
+  }
+  return cells;
+}
+
+/**
+ * Derive the same Record<StageKey, StageProgressRow> shape the old hand-typed
+ * `stage_progress` table produced, but computed from real per-para rows:
+ * current_para = count of finished paras; since_date = most recent activity
+ * (last finish, or last start if nothing has finished yet). This keeps
+ * StageProgressBars / CompletionRing / LanguageProgress consumers unchanged.
+ */
+export function buildStageMapFromParaRows(
+  rows: ParaRow[],
+  stageKeys: StageKey[]
+): Record<StageKey, StageProgressRow> {
+  const map = {} as Record<StageKey, StageProgressRow>;
+  for (const key of stageKeys) {
+    const stageRows = rows.filter((r) => r.stage === key);
+    const finishedCount = stageRows.filter((r) => r.finishedAt).length;
+    const dates = stageRows
+      .map((r) => r.finishedAt ?? r.startedAt)
+      .filter((d): d is string => !!d)
+      .sort();
+    map[key] = {
+      stage: key,
+      current_para: clampPara(finishedCount),
+      since_date: dates.length ? dates[dates.length - 1] : null,
+      notes: null,
+      updated_at: null,
+    };
   }
   return map;
 }

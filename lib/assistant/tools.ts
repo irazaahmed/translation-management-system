@@ -1,13 +1,15 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireStaff } from "@/lib/auth";
-import { createMeeting, upsertStageProgress } from "@/lib/mutations";
+import { createMeeting } from "@/lib/mutations";
+import { setStageParaCountFinished } from "@/lib/paraProgressMutations";
 import { getCachedLanguageProgress } from "@/lib/progressData";
 import { getCachedScheduleData } from "@/lib/cachedData";
 import { getLatestMeetingByLanguage, searchLanguages } from "@/lib/supabase";
 import {
   ALL_STAGE_KEYS,
+  QURAN_CACHE_TAG,
   clampPara,
   getStageKeysForLanguage,
   getStagesForLanguage,
@@ -376,10 +378,13 @@ async function updateStageProgress(args: ToolArgs) {
 
   const para = clampPara(Number(paraRaw));
 
-  await upsertStageProgress(languageId, [
-    { stage, current_para: para, since_date: new Date().toISOString().slice(0, 10), notes },
-  ]);
+  // Bulk convenience: ensures paras 1..para are marked finished for this stage
+  // (today, leaving already-assigned people/dates on already-finished paras
+  // untouched). For precise per-para start/finish + assignee tracking, use the
+  // Progress page's para board instead — this is the quick "set the count" path.
+  await setStageParaCountFinished(languageId, stage, para, new Date().toISOString().slice(0, 10));
 
+  revalidateTag(QURAN_CACHE_TAG, { expire: 0 });
   revalidatePath("/progress");
   revalidatePath(`/progress/${languageId}`);
   revalidatePath(`/languages/${languageId}`);
@@ -389,6 +394,7 @@ async function updateStageProgress(args: ToolArgs) {
     language: progress.language,
     stage: getStageMeta(stage).label,
     para_reached: para,
+    note: notes ? `Note not stored per-para in the new model: "${notes}"` : undefined,
   };
 }
 

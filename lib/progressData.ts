@@ -3,13 +3,13 @@ import "server-only";
 import { cache } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  buildStageMap,
+  buildStageMapFromParaRows,
   computePipelinePercent,
   getStageKeysForLanguage,
   type LanguageProgress,
   type ProjectProgress,
-  type StageProgressRow,
 } from "@/lib/progress";
+import { getCachedAllParaProgress, toParaRow } from "@/lib/paraProgressData";
 
 interface LanguageRow {
   id: string;
@@ -18,12 +18,13 @@ interface LanguageRow {
   responsible_person: string | null;
   project_id: string | null;
   projects: { id: string; name: string } | null;
-  stage_progress: StageProgressRow[] | null;
 }
 
-function toLanguageProgress(row: LanguageRow): LanguageProgress {
+async function toLanguageProgress(row: LanguageRow): Promise<LanguageProgress> {
   const stageKeys = getStageKeysForLanguage(row.language);
-  const stages = buildStageMap(row.stage_progress, stageKeys);
+  const allParaRows = await getCachedAllParaProgress();
+  const paraRows = allParaRows.filter((r) => r.languageId === row.id).map(toParaRow);
+  const stages = buildStageMapFromParaRows(paraRows, stageKeys);
   const lastKey = stageKeys[stageKeys.length - 1];
   return {
     languageId: row.id,
@@ -45,13 +46,13 @@ const LANGUAGE_SELECT = `
   country,
   responsible_person,
   project_id,
-  projects:project_id ( id, name ),
-  stage_progress ( stage, current_para, since_date, notes, updated_at )
+  projects:project_id ( id, name )
 `;
 
 /**
  * The full progress board: in-progress languages grouped by project.
  * Consistent with the rest of the app, only `in_progress` languages appear.
+ * Progress is derived live from para_progress rows (see lib/paraProgressData.ts).
  */
 export const getCachedProgressBoard = cache(async (): Promise<ProjectProgress[]> => {
   const { data, error } = await supabase
@@ -66,7 +67,7 @@ export const getCachedProgressBoard = cache(async (): Promise<ProjectProgress[]>
   const UNASSIGNED = "__unassigned__";
 
   for (const row of (data ?? []) as unknown as LanguageRow[]) {
-    const lang = toLanguageProgress(row);
+    const lang = await toLanguageProgress(row);
     const key = lang.projectId ?? UNASSIGNED;
     if (!groups.has(key)) {
       groups.set(key, {

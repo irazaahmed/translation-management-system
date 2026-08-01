@@ -1,6 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import ProgressEditForm from "./ProgressEditForm";
+import ParaBoard from "./ParaBoard";
 import { getCachedLanguageProgress } from "@/lib/progressData";
+import { getCachedParaBoard, getCachedQuranPeople } from "@/lib/paraProgressData";
 import { requireStaff } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -26,6 +27,11 @@ export default async function EditProgressPage({ params }: PageProps) {
     notFound();
   }
 
+  const [board, people] = await Promise.all([
+    getCachedParaBoard(languageId, lang.stageKeys),
+    getCachedQuranPeople(),
+  ]);
+
   return (
     <DashboardLayout>
       <div className="mb-6 sm:mb-8">
@@ -37,17 +43,30 @@ export default async function EditProgressPage({ params }: PageProps) {
           <span className="whitespace-nowrap font-medium text-gray-900 dark:text-gray-100">{lang.language}</span>
         </nav>
 
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Update Progress — {lang.language}
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          {lang.country}
-          {lang.projectName ? ` · ${lang.projectName}` : ""}
-          {lang.responsiblePerson ? ` · ${lang.responsiblePerson}` : ""}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+              Update Progress — {lang.language}
+            </h1>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {lang.country}
+              {lang.projectName ? ` · ${lang.projectName}` : ""}
+            </p>
+          </div>
+          <Link
+            href="/progress/people"
+            className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            Manage workforce →
+          </Link>
+        </div>
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+          Click a para to start it (pick a person + date), mark it finished, or reopen it. The
+          progress bars on the main Progress board update automatically from this.
         </p>
       </div>
 
-      <ProgressEditForm lang={lang} />
+      <ParaBoard languageId={lang.languageId} languageName={lang.language} board={board} people={people} />
     </DashboardLayout>
   );
 }
