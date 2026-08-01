@@ -57,12 +57,27 @@ export interface RawParaRow {
 const PARA_PROGRESS_SELECT =
   "language_id, stage, para_number, person_id, started_at, finished_at, notes, quran_people(name)";
 
+// PostgREST caps a single request at ~1000 rows by default. With 24+ languages
+// x up to 7 stages x 30 paras, the table can exceed that, so a plain
+// unpaginated select silently truncates (and can drop newly-written rows out
+// of the window). Page through with .range() until a page comes back short.
+const PARA_PROGRESS_PAGE_SIZE = 1000;
+
 /** Every para_progress row across all languages. Tolerant of the table not existing yet. */
 const loadAllParaProgress = unstable_cache(
   async (): Promise<RawParaRow[]> => {
-    const { data, error } = await supabase.from("para_progress").select(PARA_PROGRESS_SELECT);
-    if (error) throw error;
-    return (data || []) as unknown as RawParaRow[];
+    const rows: RawParaRow[] = [];
+    for (let from = 0; ; from += PARA_PROGRESS_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("para_progress")
+        .select(PARA_PROGRESS_SELECT)
+        .range(from, from + PARA_PROGRESS_PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data || []) as unknown as RawParaRow[];
+      rows.push(...page);
+      if (page.length < PARA_PROGRESS_PAGE_SIZE) break;
+    }
+    return rows;
   },
   ["para-progress-all"],
   QURAN_CACHE
