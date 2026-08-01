@@ -22,15 +22,18 @@ export default async function EditProgressPage({ params }: PageProps) {
     redirect("/progress");
   }
 
-  const lang = await getCachedLanguageProgress(languageId);
+  const [lang, people] = await Promise.all([
+    getCachedLanguageProgress(languageId),
+    getCachedQuranPeople(),
+  ]);
   if (!lang) {
     notFound();
   }
 
-  const [board, people] = await Promise.all([
-    getCachedParaBoard(languageId, lang.stageKeys),
-    getCachedQuranPeople(),
-  ]);
+  // The para rows for this language were already fetched above (as part of
+  // getCachedLanguageProgress) and are request-scoped cached, so this reuses
+  // them instead of issuing another query.
+  const board = await getCachedParaBoard(languageId, lang.stageKeys);
 
   return (
     <DashboardLayout>

@@ -1,27 +1,19 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedQuranPeople, getCachedParaActivity } from "@/lib/paraProgressData";
+import { getCachedQuranPeople, getCachedActiveParaCounts } from "@/lib/paraProgressData";
 import QuranPeopleManager from "./QuranPeopleManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuranPeoplePage() {
   let people: Awaited<ReturnType<typeof getCachedQuranPeople>> = [];
+  let workloads: Record<string, number> = {};
   let error: string | null = null;
   try {
-    people = await getCachedQuranPeople();
+    [people, workloads] = await Promise.all([getCachedQuranPeople(), getCachedActiveParaCounts()]);
   } catch (err) {
     console.error("Failed to fetch quran_people:", err);
     error = "Failed to load. Has the add_para_progress migration been run?";
-  }
-
-  // Active workload per person — paras currently in progress (started, not finished).
-  const activity = await getCachedParaActivity();
-  const workloads: Record<string, number> = {};
-  for (const row of activity) {
-    if (row.startedAt && !row.finishedAt && row.personId) {
-      workloads[row.personId] = (workloads[row.personId] ?? 0) + 1;
-    }
   }
 
   return (
