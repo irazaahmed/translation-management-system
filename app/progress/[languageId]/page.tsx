@@ -1,5 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import ParaBoard from "./ParaBoard";
+import ParaStageEditor from "./ParaStageEditor";
 import { getCachedLanguageProgress } from "@/lib/progressData";
 import { getCachedParaBoard, getCachedQuranPeople } from "@/lib/paraProgressData";
 import { requireStaff } from "@/lib/auth";
@@ -64,12 +64,13 @@ export default async function EditProgressPage({ params }: PageProps) {
           </Link>
         </div>
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Click a para to start it (pick a person + date), mark it finished, or reopen it. The
+          Open a stage, edit person/started/finished directly in the table (use the "Today"
+          buttons for quick dates, or "Mark done up to para N" for bulk progress), then Save. The
           progress bars on the main Progress board update automatically from this.
         </p>
       </div>
 
-      <ParaBoard languageId={lang.languageId} languageName={lang.language} board={board} people={people} />
+      <ParaStageEditor languageId={lang.languageId} languageName={lang.language} board={board} people={people} />
     </DashboardLayout>
   );
 }

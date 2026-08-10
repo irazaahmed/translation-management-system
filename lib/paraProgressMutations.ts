@@ -49,90 +49,6 @@ export async function deleteQuranPerson(personId: string): Promise<void> {
 // Per-para progress — para_progress
 // ============================================
 
-/** Assign a para to a person and start it (or restart it, clearing any prior finish). */
-export async function assignPara(
-  languageId: string,
-  stage: StageKey,
-  paraNumber: number,
-  personId: string | null,
-  startedAt: string
-): Promise<void> {
-  const supabase = await getWriteClient();
-  const { error } = await supabase.from("para_progress").upsert(
-    [
-      {
-        language_id: languageId,
-        stage,
-        para_number: paraNumber,
-        person_id: personId,
-        started_at: startedAt,
-        finished_at: null,
-      },
-    ],
-    { onConflict: "language_id,stage,para_number" }
-  );
-  if (error) throw error;
-}
-
-/** Mark a para finished. If it was never explicitly started, backfills started_at with the finish date. */
-export async function finishPara(
-  languageId: string,
-  stage: StageKey,
-  paraNumber: number,
-  finishedAt: string
-): Promise<void> {
-  const supabase = await getWriteClient();
-
-  // Common case (para was started first): a single UPDATE, no extra round trip.
-  const { data: updated, error: updateErr } = await supabase
-    .from("para_progress")
-    .update({ finished_at: finishedAt })
-    .eq("language_id", languageId)
-    .eq("stage", stage)
-    .eq("para_number", paraNumber)
-    .select("para_number");
-  if (updateErr) throw updateErr;
-  if (updated && updated.length > 0) return;
-
-  // Rare case: marked finished with no prior row — insert one, backfilling
-  // started_at with the finish date since it was never explicitly started.
-  const { error: insertErr } = await supabase.from("para_progress").insert([
-    {
-      language_id: languageId,
-      stage,
-      para_number: paraNumber,
-      person_id: null,
-      started_at: finishedAt,
-      finished_at: finishedAt,
-    },
-  ]);
-  if (insertErr) throw insertErr;
-}
-
-/** Move a finished para back to in-progress. */
-export async function reopenPara(languageId: string, stage: StageKey, paraNumber: number): Promise<void> {
-  const supabase = await getWriteClient();
-  const { error } = await supabase
-    .from("para_progress")
-    .update({ finished_at: null })
-    .eq("language_id", languageId)
-    .eq("stage", stage)
-    .eq("para_number", paraNumber);
-  if (error) throw error;
-}
-
-/** Unassign a para entirely — back to not-started. */
-export async function clearPara(languageId: string, stage: StageKey, paraNumber: number): Promise<void> {
-  const supabase = await getWriteClient();
-  const { error } = await supabase
-    .from("para_progress")
-    .delete()
-    .eq("language_id", languageId)
-    .eq("stage", stage)
-    .eq("para_number", paraNumber);
-  if (error) throw error;
-}
-
 /**
  * Bulk convenience for the AI assistant's "set stage to para N" tool: ensures
  * paras 1..count for a stage are marked finished (today, unassigned unless
@@ -183,4 +99,53 @@ export async function setStageParaCountFinished(
     .from("para_progress")
     .upsert(rows, { onConflict: "language_id,stage,para_number" });
   if (error) throw error;
+}
+
+export interface ParaStageRowInput {
+  paraNumber: number;
+  personId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/**
+ * Batch-save every para (1..30) of one stage in a single round trip pair —
+ * the editable-table equivalent of ET's saveEtStages. Rows with any data
+ * (person/started/finished) are upserted together; rows that were cleared
+ * back to empty are deleted together (back to "not started").
+ */
+export async function saveParaStage(
+  languageId: string,
+  stage: StageKey,
+  rows: ParaStageRowInput[]
+): Promise<void> {
+  const supabase = await getWriteClient();
+
+  const toUpsert = rows.filter((r) => r.personId || r.startedAt || r.finishedAt);
+  const toDelete = rows.filter((r) => !r.personId && !r.startedAt && !r.finishedAt).map((r) => r.paraNumber);
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabase.from("para_progress").upsert(
+      toUpsert.map((r) => ({
+        language_id: languageId,
+        stage,
+        para_number: r.paraNumber,
+        person_id: r.personId,
+        started_at: r.startedAt,
+        finished_at: r.finishedAt,
+      })),
+      { onConflict: "language_id,stage,para_number" }
+    );
+    if (error) throw error;
+  }
+
+  if (toDelete.length > 0) {
+    const { error } = await supabase
+      .from("para_progress")
+      .delete()
+      .eq("language_id", languageId)
+      .eq("stage", stage)
+      .in("para_number", toDelete);
+    if (error) throw error;
+  }
 }

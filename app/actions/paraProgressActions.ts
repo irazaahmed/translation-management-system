@@ -6,11 +6,9 @@ import {
   addQuranPerson,
   updateQuranPerson,
   deleteQuranPerson,
-  assignPara,
-  finishPara,
-  reopenPara,
-  clearPara,
+  saveParaStage,
   type QuranPersonInput,
+  type ParaStageRowInput,
 } from "@/lib/paraProgressMutations";
 import { QURAN_CACHE_TAG, type StageKey } from "@/lib/progress";
 
@@ -98,83 +96,22 @@ export async function deleteQuranPersonAction(personId: string): Promise<ParaAct
 // Per-para progress actions
 // ============================================
 
-export async function assignParaAction(
+/** Batch-save one stage's full 1..30 table in a single action — the editor's "Save changes" button. */
+export async function saveParaStageAction(
   languageId: string,
   stage: StageKey,
-  paraNumber: number,
-  personId: string | null,
-  startedAt: string
+  rows: ParaStageRowInput[]
 ): Promise<ParaActionState> {
-  if (!languageId || !stage || !paraNumber) return { error: "Missing para reference." };
   try {
     await requireStaff();
-    await assignPara(languageId, stage, paraNumber, personId, startedAt);
+    await saveParaStage(languageId, stage, rows);
     revalidateQuranProgress(languageId);
     return { success: true };
   } catch (error) {
-    console.error("Failed to assign para:", error);
+    console.error("Failed to save para stage:", error);
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return { error: "You don't have permission to edit progress." };
     }
     return { error: "Failed to save. Has the add_para_progress migration been run?" };
-  }
-}
-
-export async function finishParaAction(
-  languageId: string,
-  stage: StageKey,
-  paraNumber: number,
-  finishedAt: string
-): Promise<ParaActionState> {
-  if (!languageId || !stage || !paraNumber) return { error: "Missing para reference." };
-  try {
-    await requireStaff();
-    await finishPara(languageId, stage, paraNumber, finishedAt);
-    revalidateQuranProgress(languageId);
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to finish para:", error);
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return { error: "You don't have permission to edit progress." };
-    }
-    return { error: "Failed to save. Please try again." };
-  }
-}
-
-export async function reopenParaAction(
-  languageId: string,
-  stage: StageKey,
-  paraNumber: number
-): Promise<ParaActionState> {
-  try {
-    await requireStaff();
-    await reopenPara(languageId, stage, paraNumber);
-    revalidateQuranProgress(languageId);
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to reopen para:", error);
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return { error: "You don't have permission to edit progress." };
-    }
-    return { error: "Failed to save. Please try again." };
-  }
-}
-
-export async function clearParaAction(
-  languageId: string,
-  stage: StageKey,
-  paraNumber: number
-): Promise<ParaActionState> {
-  try {
-    await requireStaff();
-    await clearPara(languageId, stage, paraNumber);
-    revalidateQuranProgress(languageId);
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to clear para:", error);
-    if (error instanceof Error && error.message === "UNAUTHORIZED") {
-      return { error: "You don't have permission to edit progress." };
-    }
-    return { error: "Failed to save. Please try again." };
   }
 }
