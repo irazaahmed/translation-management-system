@@ -71,6 +71,7 @@ interface Props {
 }
 
 type ReportType = "activity" | "items" | "single" | "returns";
+type ReturnView = "byItem" | "byStage" | "byPerson";
 
 function fmt(d: string | null): string {
   if (!d) return "";
@@ -145,6 +146,7 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
   const [itemQuery, setItemQuery] = useState("");
   const [itemOpen, setItemOpen] = useState(false);
   const [returnItemId, setReturnItemId] = useState("");
+  const [returnView, setReturnView] = useState<ReturnView>("byItem");
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [allDates, setAllDates] = useState(false);
@@ -326,6 +328,50 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
     return rows;
   }, [returns, person, category, from, to, allDates, sortBy]);
 
+  interface ReturnGroupRow { key: string; label: string; count: number; out: number; items: number; last: string | null; }
+
+  function groupReturns(keyOf: (r: ReturnReportRow) => { key: string; label: string }): ReturnGroupRow[] {
+    interface Acc { key: string; label: string; count: number; out: number; itemIds: Set<string>; last: string | null; }
+    const m = new Map<string, Acc>();
+    for (const r of returns) {
+      if (person !== "all" && r.person !== person) continue;
+      if (category !== "all" && r.category !== category) continue;
+      if (!allDates && !inRange(r.given, from, to)) continue;
+      const { key, label } = keyOf(r);
+      const acc = m.get(key) ?? { key, label, count: 0, out: 0, itemIds: new Set<string>(), last: null };
+      acc.count += 1;
+      if (!r.back) acc.out += 1;
+      acc.itemIds.add(r.itemId);
+      if (r.given && (!acc.last || r.given > acc.last)) acc.last = r.given;
+      m.set(key, acc);
+    }
+    const rows = [...m.values()].map((a) => ({ key: a.key, label: a.label, count: a.count, out: a.out, items: a.itemIds.size, last: a.last }));
+    rows.sort((a, b) => {
+      switch (sortBy) {
+        case "given-asc": return cmpDate(a.last, b.last, "asc");
+        case "title":
+        case "person": return a.label.localeCompare(b.label);
+        case "given-desc":
+        case "count-desc":
+        default: return b.count - a.count || a.label.localeCompare(b.label);
+      }
+    });
+    return rows;
+  }
+
+  // Breakdown of returns by the stage they were sent back to — "which steps
+  // are things getting returned at".
+  const returnByStage = useMemo(
+    () => groupReturns((r) => ({ key: r.stage ?? "__none__", label: r.stage ? `${r.stage} · ${r.stageName}` : "Unspecified" })),
+    [returns, person, category, from, to, allDates, sortBy]
+  );
+
+  // Breakdown of returns by who they were sent back to — "who's holding returns".
+  const returnByPerson = useMemo(
+    () => groupReturns((r) => ({ key: r.person || "__unassigned__", label: r.person || "Unassigned" })),
+    [returns, person, category, from, to, allDates, sortBy]
+  );
+
   // Detail rows: the chosen item's COMPLETE return history (all of it, ignoring
   // the person/date filters) — when it went back, to whom, and for what.
   const returnDetail = useMemo(() => {
@@ -345,11 +391,17 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
   }, [returns, returnItemId, sortBy]);
 
   const isActivity = reportType === "activity";
+  const isReturnByStage = isReturns && !isReturnDetail && returnView === "byStage";
+  const isReturnByPerson = isReturns && !isReturnDetail && returnView === "byPerson";
   const count = isSingle
     ? singleRows.length
     : isReturns
     ? isReturnDetail
       ? returnDetail.length
+      : isReturnByStage
+      ? returnByStage.length
+      : isReturnByPerson
+      ? returnByPerson.length
       : returnSummary.length
     : isActivity
     ? activityRows.length
@@ -361,6 +413,10 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
     : isReturns
     ? isReturnDetail
       ? ["Stage", "Returned to", "What was missing", "Given", "Came back", "Days", "Status"]
+      : isReturnByStage
+      ? ["Stage", "Returns", "Still out", "Items affected", "Last return"]
+      : isReturnByPerson
+      ? ["Returned to", "Returns", "Still out", "Items affected", "Last return"]
       : ["Title", "Type", "Category", "Returns", "Still out", "Last return"]
     : isActivity
     ? ["Item", "Type", "Category", "Stage", "Person", "Sent", "Received", "Days"]
@@ -387,6 +443,10 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
           daysBetween(r.given, r.back),
           r.status,
         ])
+      : isReturnByStage
+      ? returnByStage.map((g) => [g.label, String(g.count), String(g.out), String(g.items), fmt(g.last)])
+      : isReturnByPerson
+      ? returnByPerson.map((g) => [g.label, String(g.count), String(g.out), String(g.items), fmt(g.last)])
       : returnSummary.map((g) => [
           g.title,
           g.type,
@@ -431,6 +491,10 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
     : isReturns
     ? isReturnDetail
       ? "Item Returns — Full History"
+      : isReturnByStage
+      ? "Returns — By Stage"
+      : isReturnByPerson
+      ? "Returns — By Person"
       : "Returns — Items Sent Back to Fix"
     : isActivity
     ? "Per-Person Activity Report"
@@ -456,7 +520,7 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
         parts.push(`Sorted by: ${sortLabel}`);
         return parts.join("   ·   ");
       }
-      parts.push("Scope: Items with returns");
+      parts.push(`Scope: ${isReturnByStage ? "Returns by stage" : isReturnByPerson ? "Returns by person" : "Items with returns"}`);
       parts.push(`Returned to: ${person === "all" ? "All" : person}`);
       parts.push(`Category: ${category === "all" ? "All" : category}`);
       parts.push(`Period${allDates ? "" : " (Given)"}: ${allDates ? "All dates" : `${from} → ${to}`}`);
@@ -486,7 +550,7 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
         const slug = (returnItemTitle || "item").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
         return `tms-item-returns-${slug}`;
       }
-      return `tms-returns-${allDates ? "all-dates" : `${from}_${to}`}`;
+      return `tms-returns-${returnView}-${allDates ? "all-dates" : `${from}_${to}`}`;
     }
     const who = person === "all" ? "all" : person.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     const range = allDates ? "all-dates" : `${from}_${to}`;
@@ -730,6 +794,24 @@ export default function ReportBuilder({ activity, items, itemStages, returns, pe
           </div>
         ) : (
           <>
+            {isReturns && !isReturnDetail && (
+              <div className="mb-3 inline-flex rounded-lg bg-gray-100 dark:bg-gray-800 p-0.5">
+                {(["byItem", "byStage", "byPerson"] as ReturnView[]).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setReturnView(v)}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      returnView === v
+                        ? "bg-white dark:bg-gray-900 text-emerald-700 dark:text-emerald-400 shadow-sm"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    {v === "byItem" ? "By item" : v === "byStage" ? "By stage" : "By person"}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className={`grid gap-3 sm:grid-cols-2 ${isActivity || isReturns ? "lg:grid-cols-5" : "lg:grid-cols-6"}`}>
               {isReturns && (
                 <div>

@@ -678,6 +678,18 @@ export function returnBadgeLabel(stage: StageCode | null): string {
   return stage ? `Return to ${stage}` : "Return";
 }
 
+/**
+ * Compact "· Person · Nd" suffix for a return badge — who it's with and how
+ * long it's been out. Empty string when neither is known.
+ */
+export function returnBadgeDetail(person: string | null, sentDate: string | null): string {
+  const parts: string[] = [];
+  if (person) parts.push(person);
+  const days = daysSince(sentDate);
+  if (days != null) parts.push(days <= 0 ? "today" : `${days}d`);
+  return parts.length ? ` · ${parts.join(" · ")}` : "";
+}
+
 /** Tailwind classes for a stage badge, colour-coded by pipeline position. */
 export function stageBadgeClasses(stage: StageCode | null, completed = false): string {
   if (completed)

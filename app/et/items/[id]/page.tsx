@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedEtItem, getCachedEtPeople, getCachedEtReturns } from "@/lib/etData";
-import { computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isWsbType, returnBadgeLabel, stageName, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
+import { computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isWsbType, returnBadgeLabel, returnBadgeDetail, stageName, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
 import EtQuickAdvance from "./EtQuickAdvance";
@@ -144,7 +144,7 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
         <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 sm:p-4">
           {inReturn ? (
             <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-              ↩ {returnBadgeLabel(openReturn!.stage)} — sent back to complete a missing/incorrect part. See “Returns” below.
+              ↩ {returnBadgeLabel(openReturn!.stage)}{returnBadgeDetail(openReturn!.person, openReturn!.sent_date)} — sent back to complete a missing/incorrect part. See “Returns” below.
             </p>
           ) : current.completed ? (
             <p className="text-sm font-medium text-green-700 dark:text-green-400">

@@ -67,6 +67,8 @@ export default async function EtBooksPage() {
       completed: r.current.completed,
       inReturn: r.inReturn,
       returnStage: r.returnStage,
+      returnPerson: r.returnPerson,
+      returnSentDate: r.returnSentDate,
       holder: r.current.holder,
       doneCount: r.current.doneCount,
       totalCount: r.current.totalCount,
