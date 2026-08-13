@@ -146,13 +146,13 @@ export default function AssignmentPlanner({ personId, assignments, items, canWri
               <div className="min-w-0 flex-1">
                 <Link
                   href={`/et/items/${a.item_id}?from=${FROM}`}
-                  className={`block truncate text-sm ${a.done ? "text-gray-400 line-through dark:text-gray-500" : "text-gray-800 hover:text-emerald-700 dark:text-gray-100 dark:hover:text-emerald-400"}`}
+                  className={`block break-words text-sm ${a.done ? "text-gray-400 line-through dark:text-gray-500" : "text-gray-800 hover:text-emerald-700 dark:text-gray-100 dark:hover:text-emerald-400"}`}
                   title={a.item_title}
                 >
                   {a.item_title}
                 </Link>
-                <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
-                  {a.item_type}
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {(a.item_type || "—").toUpperCase()}
                   {a.note ? ` · ${a.note}` : ""}
                 </p>
               </div>

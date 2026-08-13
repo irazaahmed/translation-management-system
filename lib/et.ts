@@ -193,6 +193,12 @@ export function typeLabel(type: string | null | undefined): string {
   return TYPE_LABELS[type.toLowerCase()] ?? type;
 }
 
+/** Short code for a content type (e.g. "WSB") — for tight spots like mobile cards where the full label crowds out the item name. */
+export function typeShortLabel(type: string | null | undefined): string {
+  if (!type) return "—";
+  return type.toUpperCase();
+}
+
 /** Weekly documents that must be delivered every week (handled like the Excel REMINDER sheet). */
 export const WEEKLY_TYPES = ["wsb", "fsp", "wbl"] as const;
 export function isWeeklyType(type: string | null | undefined): boolean {

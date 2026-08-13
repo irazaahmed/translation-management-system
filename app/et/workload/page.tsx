@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemsWithStages, getCachedEtAllReturns, type EtReturnRow } from "@/lib/etData";
-import { activeStages, computeCurrentStep, reminderInfo, returnBadgeLabel, stageName, typeLabel } from "@/lib/et";
+import { activeStages, computeCurrentStep, reminderInfo, returnBadgeLabel, stageName, typeShortLabel } from "@/lib/et";
 import type { EtItemWithStages } from "@/lib/et";
 import WorkloadBoard, { type WorkloadGroup, type WorkloadItem } from "./WorkloadBoard";
 
@@ -44,7 +44,7 @@ export default async function EtWorkloadPage() {
     activeCount++;
 
     const info = reminderInfo(it);
-    const type = typeLabel(it.type);
+    const type = typeShortLabel(it.type);
     const progress = `${current.doneCount}/${current.totalCount}`;
 
     // One row per stage the person is *actively* holding — so an item given two
@@ -111,7 +111,7 @@ export default async function EtWorkloadPage() {
       rowId: `return-${r.id}`,
       id: r.item_id,
       title: r.item_title,
-      type: typeLabel(r.item_type),
+      type: typeShortLabel(r.item_type),
       stageCode: null,
       stageName: returnBadgeLabel(r.stage),
       daysHeld: daysSince(r.sent_date),

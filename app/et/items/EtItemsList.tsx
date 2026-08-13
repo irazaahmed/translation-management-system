@@ -15,6 +15,7 @@ import {
   reminderInfo,
   stageBadgeClasses,
   typeLabel,
+  typeShortLabel,
   type ItemCategory,
 } from "@/lib/et";
 import type { EtItemRow } from "@/lib/etData";
@@ -385,7 +386,7 @@ export default function EtItemsList({ items, initial }: Props) {
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <StageBadge row={row} />
-                <span className="text-xs text-gray-500 dark:text-gray-400">{typeLabel(row.type)}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{typeShortLabel(row.type)}</span>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div>

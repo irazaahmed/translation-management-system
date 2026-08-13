@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, getCachedEtAssignments, type EtItemRow } from "@/lib/etData";
-import { typeLabel, type EtAssignment } from "@/lib/et";
+import { typeShortLabel, type EtAssignment } from "@/lib/et";
 import WorkforceManager, { type PlannerItem } from "./WorkforceManager";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function EtWorkforcePage() {
   // Item picker options for the planner — every non-stopped item, A–Z.
   const plannerItems: PlannerItem[] = rows
     .filter((r) => !r.stopped)
-    .map((r) => ({ id: r.id, title: r.title, type: typeLabel(r.type) }))
+    .map((r) => ({ id: r.id, title: r.title, type: typeShortLabel(r.type) }))
     .sort((a, b) => a.title.localeCompare(b.title));
 
   // Planned assignments grouped by person id (already position-ordered).
