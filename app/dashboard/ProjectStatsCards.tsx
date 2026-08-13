@@ -25,7 +25,7 @@ export default function ProjectStatsCards({ stats }: ProjectStatsCardsProps) {
             {/* Colored top accent */}
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-500" />
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white break-words">
                 {stat.project.name}
               </h3>
             </div>

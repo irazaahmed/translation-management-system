@@ -63,7 +63,7 @@ export default function UnassignedEtTasks({
                     href={`/et/items/${t.id}?from=${encodeURIComponent("/et")}`}
                     className="group flex items-center gap-2 rounded-lg border border-amber-200/70 dark:border-amber-800/40 bg-white/70 dark:bg-gray-900/40 px-3 py-2"
                   >
-                    <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-amber-700 dark:group-hover:text-amber-400" title={t.title}>
+                    <span className="min-w-0 flex-1 line-clamp-2 text-sm text-gray-800 dark:text-gray-200 group-hover:text-amber-700 dark:group-hover:text-amber-400" title={t.title}>
                       {t.title}
                     </span>
                   </Link>

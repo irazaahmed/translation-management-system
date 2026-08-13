@@ -200,11 +200,11 @@ export default function WorkforceManager({ people, workloads, plannerItems, assi
               <div className="flex items-start gap-3">
                 <Avatar name={p.name} />
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                  <h3 className="break-words text-sm font-semibold text-gray-900 dark:text-white">
                     {p.name}
                     {!p.active && <span className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">inactive</span>}
                   </h3>
-                  {p.email && <p className="truncate text-xs text-gray-500 dark:text-gray-400">{p.email}</p>}
+                  {p.email && <p className="break-all text-xs text-gray-500 dark:text-gray-400">{p.email}</p>}
                 </div>
                 <Link
                   href={`/et/items?holder=${encodeURIComponent(p.name)}`}

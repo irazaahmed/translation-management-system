@@ -48,7 +48,7 @@ export default function HighPriorityLanguages({ languages }: HighPriorityLanguag
               <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
                 Country
               </th>
-              <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap max-w-[120px] truncate">
+              <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
                 Responsible Person
               </th>
               <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
@@ -73,7 +73,7 @@ export default function HighPriorityLanguages({ languages }: HighPriorityLanguag
                     </span>
                   </Link>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap max-w-[120px] truncate">
+                <td className="px-3 py-3 whitespace-nowrap">
                   <Link href={`/languages/${lang.id}`}>
                     <span className="text-sm text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
                       {lang.responsible_person || "—"}

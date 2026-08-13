@@ -84,7 +84,7 @@ export default async function LanguageDetailPage({ params }: LanguageDetailPageP
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 transition-colors duration-200 truncate">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 transition-colors duration-200 break-words">
               {language.language}
             </h1>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 transition-colors duration-200">{language.country}</p>
@@ -128,7 +128,7 @@ export default async function LanguageDetailPage({ params }: LanguageDetailPageP
             </div>
             <div className="min-w-0">
               <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">Project</p>
-              <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-200 truncate">
+              <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-200 break-words">
                 {language.project?.name || "—"}
               </p>
             </div>
@@ -162,7 +162,7 @@ export default async function LanguageDetailPage({ params }: LanguageDetailPageP
             </div>
             <div className="min-w-0">
               <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-200">Responsible</p>
-              <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-200 truncate">
+              <p className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 transition-colors duration-200 break-words">
                 {language.responsible_person || "Not assigned"}
               </p>
             </div>

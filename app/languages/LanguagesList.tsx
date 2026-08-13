@@ -238,7 +238,7 @@ export default function LanguagesList({ initialLanguages, projects }: LanguagesL
               <th scope="col" className="px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
                 Country
               </th>
-              <th scope="col" className="px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap max-w-[100px] lg:max-w-none truncate">
+              <th scope="col" className="px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
                 Responsible
               </th>
               <th scope="col" className="px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200 whitespace-nowrap">
@@ -280,10 +280,10 @@ export default function LanguagesList({ initialLanguages, projects }: LanguagesL
                     </div>
                   </Link>
                 </td>
-                <td className="px-3 lg:px-4 py-3 whitespace-nowrap max-w-[120px] lg:max-w-none">
+                <td className="px-3 lg:px-4 py-3">
                   <Link href={`/languages/${lang.id}`} className="flex items-center gap-2">
                     <Avatar name={lang.responsible_person} />
-                    <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-200 truncate">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-200">
                       {lang.responsible_person || "—"}
                     </span>
                   </Link>
@@ -338,7 +338,7 @@ export default function LanguagesList({ initialLanguages, projects }: LanguagesL
                 {/* Language Name & Country */}
                 <div className="mb-3">
                   <Link href={`/languages/${lang.id}`}>
-                    <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white break-words hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
                       {lang.language}
                     </h3>
                   </Link>
@@ -352,7 +352,7 @@ export default function LanguagesList({ initialLanguages, projects }: LanguagesL
                   {/* Responsible Person */}
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Responsible</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
                       {lang.responsible_person || "—"}
                     </p>
                   </div>

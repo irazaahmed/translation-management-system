@@ -184,10 +184,10 @@ export default function MeetingsList({ initialMeetings, projects, selectedProjec
                       </svg>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white transition-colors duration-200 truncate">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white transition-colors duration-200 break-words">
                         {language?.language || "Unknown Language"}
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-200 truncate">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors duration-200 break-words">
                         {language?.country} • {formatDate(meeting.meeting_date)}
                       </p>
                     </div>

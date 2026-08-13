@@ -79,7 +79,7 @@ export default function TodaysSchedule({
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`/languages/${entry.id}`}
-                      className="text-sm font-medium text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 truncate"
+                      className="text-sm font-medium text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 break-words"
                     >
                       {entry.language}
                       <span className="font-normal text-gray-400"> ({entry.country})</span>
@@ -92,7 +92,7 @@ export default function TodaysSchedule({
                       {status.label}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 break-words">
                     {entry.projectName ? `${entry.projectName}` : ""}
                     {entry.responsible_person ? ` · ${entry.responsible_person}` : ""}
                   </p>

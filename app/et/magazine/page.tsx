@@ -19,7 +19,7 @@ function Article({ row, peopleNames }: { row: EtItemRow; peopleNames: string[] }
     <div className="gloss card-hover rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et/magazine")}`} className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
+          <h3 className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400" title={row.title}>{row.title}</h3>
         </Link>
         <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${row.inReturn ? RETURN_BADGE_CLASSES : stageBadgeClasses(row.current.stage, row.current.completed)}`}>
           {row.inReturn
@@ -31,7 +31,7 @@ function Article({ row, peopleNames }: { row: EtItemRow; peopleNames: string[] }
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
         <div>
           <p className="text-gray-500 dark:text-gray-400">Holder</p>
-          <p className="font-medium text-gray-900 dark:text-white truncate">{row.current.holder || "—"}</p>
+          <p className="font-medium text-gray-900 dark:text-white break-words">{row.current.holder || "—"}</p>
         </div>
         <div>
           <p className="text-gray-500 dark:text-gray-400">Progress</p>

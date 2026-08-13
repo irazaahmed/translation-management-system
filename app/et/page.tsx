@@ -151,7 +151,7 @@ export default async function EtDashboardPage() {
                     const isHeld = held != null && held > STEP_ALERT_DAYS;
                     return (
                       <li key={row.id} className={`py-2 ${isHeld ? "-mx-2 rounded-lg bg-red-50/60 px-2 dark:bg-red-900/10" : ""}`}>
-                        <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-center gap-2 sm:gap-3">
+                        <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-start gap-2 sm:gap-3">
                           {info.daysLeft != null ? (
                             <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${urgencyClasses(info.urgency)}`}>
                               {info.daysLeft < 0 ? `${Math.abs(info.daysLeft)}d overdue` : info.daysLeft === 0 ? "today" : `${info.daysLeft}d`}
@@ -159,7 +159,7 @@ export default async function EtDashboardPage() {
                           ) : (
                             <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">no date</span>
                           )}
-                          <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
+                          <span className="min-w-0 flex-1 break-words text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
                           {isHeld && (
                             <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/20 dark:text-red-400" title={`Held ${held} days at this step — chase up`}>
                               ⏳ {held}d
@@ -191,11 +191,11 @@ export default async function EtDashboardPage() {
                   const d = daysSince(row.current.since);
                   return (
                     <li key={row.id} className="py-2">
-                      <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-center gap-3">
+                      <Link href={`/et/items/${row.id}?from=${encodeURIComponent("/et")}`} className="group flex items-start gap-3">
                         <span className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${d != null && d > 60 ? "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"}`}>
                           {d ?? "—"}d
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
+                        <span className="min-w-0 flex-1 break-words text-sm text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{row.title}</span>
                         <StageChip row={row} />
                         <span className="hidden sm:block flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{row.current.holder || "—"}</span>
                         <span className="hidden md:block flex-shrink-0 text-xs text-gray-400 dark:text-gray-500">{typeLabel(row.type)}</span>

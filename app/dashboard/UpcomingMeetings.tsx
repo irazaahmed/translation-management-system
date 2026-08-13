@@ -47,10 +47,10 @@ export default function UpcomingMeetings({ meetings }: { meetings: MeetingWithLa
               <li key={meeting.id}>
                 <Link
                   href={language ? `/languages/${language.id}` : "#"}
-                  className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
+                  className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
                       {language ? `${language.language} (${language.country})` : "Meeting"}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">

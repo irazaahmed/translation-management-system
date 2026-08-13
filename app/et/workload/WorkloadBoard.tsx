@@ -70,7 +70,7 @@ function ItemRow({ item }: { item: WorkloadItem }) {
             </span>
           )
         )}
-        <span className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+        <span className="min-w-0 flex-1 break-words text-sm text-gray-800 dark:text-gray-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
           {item.title}
         </span>
         <span className="flex-shrink-0 text-[11px] text-gray-400 dark:text-gray-500">{item.type} · {item.progress}</span>
@@ -173,7 +173,7 @@ export default function WorkloadBoard({ groups, unassigned, totalItems }: Props)
                 <button type="button" onClick={() => toggle(g.holder)} className="flex w-full items-center gap-3 text-left">
                   <Avatar name={g.holder} />
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">{g.holder}</h3>
+                    <h3 className="break-words text-sm font-semibold text-gray-900 dark:text-white">{g.holder}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {g.items.length} task{g.items.length === 1 ? "" : "s"}
                       {groupHeld > 0 && <span className="text-red-600 dark:text-red-400"> · {groupHeld} stuck</span>}

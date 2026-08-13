@@ -65,7 +65,7 @@ function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
       <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
         <div>
           <p className="text-gray-500 dark:text-gray-400">Holder</p>
-          <p className="font-medium text-gray-900 dark:text-white truncate">{book.holder || "—"}</p>
+          <p className="font-medium text-gray-900 dark:text-white break-words">{book.holder || "—"}</p>
         </div>
         <div>
           <p className="text-gray-500 dark:text-gray-400">Progress</p>
