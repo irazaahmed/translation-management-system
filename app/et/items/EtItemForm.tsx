@@ -96,6 +96,34 @@ export default function EtItemForm({ item }: Props) {
               )}
             </div>
 
+            {/* Sender name/email — optional, kept for tracing where work came from */}
+            <div>
+              <label htmlFor="sender_name" className={labelCls}>
+                Sender name <span className="font-normal text-gray-400 dark:text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="text"
+                id="sender_name"
+                name="sender_name"
+                defaultValue={item?.sender_name ?? ""}
+                className={inputCls}
+                placeholder="Who sent this in?"
+              />
+            </div>
+            <div>
+              <label htmlFor="sender_email" className={labelCls}>
+                Sender email <span className="font-normal text-gray-400 dark:text-gray-500">(optional)</span>
+              </label>
+              <input
+                type="email"
+                id="sender_email"
+                name="sender_email"
+                defaultValue={item?.sender_email ?? ""}
+                className={inputCls}
+                placeholder="sender@example.com"
+              />
+            </div>
+
             {/* Type */}
             <div>
               <label htmlFor="type" className={labelCls}>Type</label>

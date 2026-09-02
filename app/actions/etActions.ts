@@ -107,6 +107,8 @@ export async function createEtItemAction(
       final_email_date: (formData.get("final_email_date") as string) || null,
       priority: parsePriority(formData.get("priority") as string),
       further_process: (formData.get("further_process") as string)?.trim() || null,
+      sender_name: (formData.get("sender_name") as string)?.trim() || null,
+      sender_email: (formData.get("sender_email") as string)?.trim() || null,
     });
     revalidateEt();
   } catch (error) {
@@ -142,6 +144,8 @@ export async function updateEtItemAction(
       final_email_date: (formData.get("final_email_date") as string) || null,
       priority: parsePriority(formData.get("priority") as string),
       further_process: (formData.get("further_process") as string)?.trim() || null,
+      sender_name: (formData.get("sender_name") as string)?.trim() || null,
+      sender_email: (formData.get("sender_email") as string)?.trim() || null,
     });
     revalidateEt(itemId);
   } catch (error) {

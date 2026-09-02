@@ -312,6 +312,9 @@ export interface EtItem {
   priority: ItemPriority | null;
   status: ItemStatus;
   further_process: string | null;
+  /** Optional — who sent this work in, for tracing where it came from. */
+  sender_name: string | null;
+  sender_email: string | null;
   created_at: string;
   updated_at: string;
 }

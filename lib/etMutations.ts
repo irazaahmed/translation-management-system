@@ -38,6 +38,8 @@ export interface CreateEtItemInput {
   final_email_date: string | null;
   priority: ItemPriority | null;
   further_process: string | null;
+  sender_name: string | null;
+  sender_email: string | null;
 }
 
 /** Create an item plus its 8 (blank) pipeline stage rows. Returns the new id. */
@@ -58,6 +60,8 @@ export async function createEtItem(input: CreateEtItemInput): Promise<string> {
         priority: input.priority,
         status: input.final_email_date ? "completed" : "pending_assignment",
         further_process: input.further_process,
+        sender_name: input.sender_name,
+        sender_email: input.sender_email,
       },
     ])
     .select("id")
@@ -76,7 +80,7 @@ export async function createEtItem(input: CreateEtItemInput): Promise<string> {
 export type UpdateEtItemInput = Partial<
   Pick<
     EtItem,
-    "title" | "type" | "board" | "received_date" | "word_count" | "delivery_date" | "final_email_date" | "priority" | "further_process"
+    "title" | "type" | "board" | "received_date" | "word_count" | "delivery_date" | "final_email_date" | "priority" | "further_process" | "sender_name" | "sender_email"
   >
 >;
 

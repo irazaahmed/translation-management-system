@@ -201,6 +201,19 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
         {item.received_date && (
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Received: {fmt(item.received_date)}</p>
         )}
+        {(item.sender_name || item.sender_email) && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Sent by: {item.sender_name || "—"}
+            {item.sender_email && (
+              <>
+                {" "}·{" "}
+                <a href={`mailto:${item.sender_email}`} className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                  {item.sender_email}
+                </a>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       {/* Pipeline (editable for staff, read-only for viewers) */}
