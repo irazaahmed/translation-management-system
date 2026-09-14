@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import ParaStageEditor from "./ParaStageEditor";
 import { getCachedLanguageProgress } from "@/lib/progressData";
-import { getCachedParaBoard, getCachedQuranPeople } from "@/lib/paraProgressData";
+import { getCachedParaBoard } from "@/lib/paraProgressData";
 import { requireStaff } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -22,10 +22,7 @@ export default async function EditProgressPage({ params }: PageProps) {
     redirect("/progress");
   }
 
-  const [lang, people] = await Promise.all([
-    getCachedLanguageProgress(languageId),
-    getCachedQuranPeople(),
-  ]);
+  const lang = await getCachedLanguageProgress(languageId);
   if (!lang) {
     notFound();
   }
@@ -46,31 +43,22 @@ export default async function EditProgressPage({ params }: PageProps) {
           <span className="whitespace-nowrap font-medium text-gray-900 dark:text-gray-100">{lang.language}</span>
         </nav>
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Update Progress — {lang.language}
-            </h1>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              {lang.country}
-              {lang.projectName ? ` · ${lang.projectName}` : ""}
-            </p>
-          </div>
-          <Link
-            href="/progress/people"
-            className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            Manage workforce →
-          </Link>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+            Update Progress — {lang.language}
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {lang.country}
+            {lang.projectName ? ` · ${lang.projectName}` : ""}
+          </p>
         </div>
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Open a stage, edit person/started/finished directly in the table (use the "Today"
-          buttons for quick dates, or "Mark done up to para N" for bulk progress), then Save. The
-          progress bars on the main Progress board update automatically from this.
+          For each stage, enter how many of the 30 paras have reached it, then Save. The progress
+          bars on the main Progress board update automatically from this.
         </p>
       </div>
 
-      <ParaStageEditor languageId={lang.languageId} languageName={lang.language} board={board} people={people} />
+      <ParaStageEditor languageId={lang.languageId} languageName={lang.language} board={board} />
     </DashboardLayout>
   );
 }
