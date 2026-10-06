@@ -68,12 +68,11 @@ export default async function EtMagazinePage() {
     error = "Failed to load. Have you run the migrations and import yet?";
   }
 
+  // In-process only — completed (incl. final email sent) & stopped are hidden,
+  // same as Books and Weekly Documents.
   const articles = rows
-    .filter((r) => isMagazineType(r.type) && !r.stopped)
+    .filter((r) => isMagazineType(r.type) && !r.stopped && r.derivedStatus !== "completed")
     .sort((a, b) => a.title.localeCompare(b.title));
-
-  const active = articles.filter((a) => a.derivedStatus !== "completed");
-  const completed = articles.filter((a) => a.derivedStatus === "completed");
 
   return (
     <DashboardLayout>
@@ -82,7 +81,7 @@ export default async function EtMagazinePage() {
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">English Translation</p>
           <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Magazine</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {articles.length} articles · {active.length} active · {completed.length} completed
+            {articles.length} in-process article{articles.length === 1 ? "" : "s"} · completed are hidden
           </p>
         </div>
         <Link href="/et" className="btn-press inline-flex flex-shrink-0 items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
@@ -94,7 +93,7 @@ export default async function EtMagazinePage() {
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{error}</div>
       ) : articles.length === 0 ? (
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-10 text-center text-gray-500 dark:text-gray-400">
-          No magazine articles yet. Add an item with type “Magazine”.
+          No in-process magazine articles. Add an item with type “Magazine”.
         </div>
       ) : (
         <>
