@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "./supabase/server";
 import type { StageKey } from "./progress";
 
@@ -7,8 +8,10 @@ import type { StageKey } from "./progress";
  * request-scoped Supabase client bound to the logged-in user's session so RLS
  * applies. Callers (server actions) must gate with requireStaff().
  */
-async function getWriteClient() {
-  return await createServerSupabase();
+async function getWriteClient(client?: SupabaseClient) {
+  // `client` is only passed by the API-key routes (/api/v1/quran), which have
+  // no user session and use the service-role client.
+  return client ?? (await createServerSupabase());
 }
 
 // ============================================
@@ -117,9 +120,10 @@ export interface ParaStageRowInput {
 export async function saveParaStage(
   languageId: string,
   stage: StageKey,
-  rows: ParaStageRowInput[]
+  rows: ParaStageRowInput[],
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
 
   const toUpsert = rows.filter((r) => r.personId || r.startedAt || r.finishedAt);
   const toDelete = rows.filter((r) => !r.personId && !r.startedAt && !r.finishedAt).map((r) => r.paraNumber);

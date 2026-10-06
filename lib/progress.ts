@@ -246,6 +246,29 @@ export function buildStageMapFromParaRows(
   return map;
 }
 
+/**
+ * Turn a target "N paras reached" count into the full 1..30 row payload that
+ * saveParaStage expects: paras 1..N keep their existing dates if already
+ * finished (or get `today` if newly marked), paras beyond N are cleared back to
+ * "not started". No person is recorded — this stage just tracks a count.
+ * Shared by the progress editor and the /api/v1/quran API.
+ */
+export function buildParaCountRows(
+  cells: ParaCell[],
+  n: number,
+  today: string
+): { paraNumber: number; personId: string | null; startedAt: string | null; finishedAt: string | null }[] {
+  return cells.map((c) => {
+    if (c.paraNumber > n) {
+      return { paraNumber: c.paraNumber, personId: null, startedAt: null, finishedAt: null };
+    }
+    if (c.finishedAt) {
+      return { paraNumber: c.paraNumber, personId: c.personId, startedAt: c.startedAt, finishedAt: c.finishedAt };
+    }
+    return { paraNumber: c.paraNumber, personId: c.personId, startedAt: c.startedAt || today, finishedAt: today };
+  });
+}
+
 /** Overall completion across the language's stages, 0–100. */
 export function computePipelinePercent(
   stages: Record<StageKey, StageProgressRow>,

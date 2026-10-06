@@ -2,8 +2,10 @@
 /**
  * Create (or revoke) an API key for the /api/v1 REST API.
  *
- *   node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items:write"
+ *   node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items:write quran:read quran:write"
+ *   node scripts/create-api-key.mjs --grant zaki-assistant --scopes "quran:read quran:write"
  *   node scripts/create-api-key.mjs --revoke zaki-assistant
+ *   node scripts/create-api-key.mjs --help
  *
  * Reads NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY from .env.local.
  * Only the SHA-256 hash is stored in public.api_keys (migration 010). The
@@ -14,7 +16,21 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
-const VALID_SCOPES = ["items:read", "items:write"];
+const VALID_SCOPES = ["items:read", "items:write", "quran:read", "quran:write"];
+
+const HELP = `Usage:
+  node scripts/create-api-key.mjs --name <name> [--scopes "<scopes>"] [--created-by <who>]
+      Create a key. Prints the plaintext ONCE; only its SHA-256 hash is stored.
+  node scripts/create-api-key.mjs --grant <name> --scopes "<scopes>"
+      Add scopes to the active key(s) with that name (the key itself is unchanged).
+  node scripts/create-api-key.mjs --revoke <name>
+      Revoke every active key with that name.
+
+Scopes (space or comma separated; default "items:read"):
+  items:read   GET /api/v1/items, /items/{id}, /meta          (English Translation)
+  items:write  PATCH /api/v1/items/{id}/pipeline
+  quran:read   GET /api/v1/quran/*                            (Quranic Translation)
+  quran:write  PATCH/POST /api/v1/quran/languages, /quran/meetings`;
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
@@ -24,6 +40,18 @@ function arg(name) {
 function fail(msg) {
   console.error(`Error: ${msg}`);
   process.exit(1);
+}
+
+if (process.argv.includes("--help") || process.argv.includes("-h") || process.argv.length <= 2) {
+  console.log(HELP);
+  process.exit(0);
+}
+
+function parseScopes(fallback) {
+  const scopes = (arg("scopes") ?? fallback).split(/[\s,]+/).filter(Boolean);
+  const bad = scopes.filter((s) => !VALID_SCOPES.includes(s));
+  if (bad.length) fail(`Unknown scope(s): ${bad.join(", ")}. Valid: ${VALID_SCOPES.join(", ")}.`);
+  return scopes;
 }
 
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
@@ -46,11 +74,29 @@ if (revoke) {
   process.exit(0);
 }
 
+const grant = arg("grant");
+if (grant) {
+  if (!arg("scopes")) fail('--grant needs --scopes (e.g. --scopes "quran:read quran:write").');
+  const add = parseScopes("");
+  const { data: keys, error } = await supabase
+    .from("api_keys")
+    .select("id, scopes")
+    .eq("name", grant)
+    .is("revoked_at", null);
+  if (error) fail(error.message);
+  if (!keys.length) fail(`No active key named "${grant}".`);
+  for (const k of keys) {
+    const scopes = [...new Set([...(k.scopes ?? []), ...add])];
+    const { error: e } = await supabase.from("api_keys").update({ scopes }).eq("id", k.id);
+    if (e) fail(e.message);
+    console.log(`"${grant}" (${k.id.slice(0, 8)}…) scopes: [${scopes.join(", ")}]`);
+  }
+  process.exit(0);
+}
+
 const name = arg("name");
 if (!name) fail('--name is required (e.g. --name zaki-assistant).');
-const scopes = (arg("scopes") ?? "items:read").split(/[\s,]+/).filter(Boolean);
-const bad = scopes.filter((s) => !VALID_SCOPES.includes(s));
-if (bad.length) fail(`Unknown scope(s): ${bad.join(", ")}. Valid: ${VALID_SCOPES.join(", ")}.`);
+const scopes = parseScopes("items:read");
 
 const key = `tms_${randomBytes(32).toString("base64url")}`;
 const { error } = await supabase.from("api_keys").insert({

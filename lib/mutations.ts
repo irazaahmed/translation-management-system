@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "./supabase/server";
 import type {
   Language,
@@ -15,8 +16,10 @@ import type {
  * so RLS can enforce roles via auth.uid(). Keeping these out of lib/supabase.ts
  * prevents next/headers from leaking into client bundles.
  */
-async function getWriteClient() {
-  return await createServerSupabase();
+async function getWriteClient(client?: SupabaseClient) {
+  // `client` is only passed by the API-key routes (/api/v1/quran), which have
+  // no user session and use the service-role client.
+  return client ?? (await createServerSupabase());
 }
 
 // ---------------------------------------------------------------
@@ -95,10 +98,11 @@ export async function setAssignedDay(
 
 export async function updateLanguage(
   languageId: string,
-  input: UpdateLanguageInput
+  input: UpdateLanguageInput,
+  client?: SupabaseClient
 ): Promise<Language | null> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const updateData: Partial<Language> = {
       ...input,
@@ -141,10 +145,11 @@ export async function deleteLanguage(languageId: string): Promise<void> {
 // ---------------------------------------------------------------
 
 export async function createMeeting(
-  input: CreateMeetingInput
+  input: CreateMeetingInput,
+  client?: SupabaseClient
 ): Promise<Meeting | null> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const { data, error } = await supabase
       .from("meetings")
@@ -175,10 +180,11 @@ export async function createMeeting(
 
 export async function updateMeeting(
   meetingId: string,
-  input: UpdateMeetingInput
+  input: UpdateMeetingInput,
+  client?: SupabaseClient
 ): Promise<Meeting | null> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const updateData: Partial<Meeting> = {
       ...input,

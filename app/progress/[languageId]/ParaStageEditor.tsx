@@ -6,6 +6,7 @@ import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
 import { saveParaStageAction } from "@/app/actions/paraProgressActions";
 import {
+  buildParaCountRows,
   getStagesForLanguage,
   TOTAL_PARAS,
   clampPara,
@@ -13,30 +14,11 @@ import {
   type StageKey,
   type StageMeta,
 } from "@/lib/progress";
-import type { ParaStageRowInput } from "@/lib/paraProgressMutations";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
 function doneCount(cells: ParaCell[]): number {
   return cells.filter((c) => c.finishedAt).length;
-}
-
-/**
- * Turn a target "N paras reached" count into the full 1..30 row payload the
- * backend expects: paras 1..N keep their existing dates if already finished
- * (or get today's date if newly marked), paras beyond N are cleared back to
- * "not started". No person is recorded — this stage just tracks a count.
- */
-function buildRows(cells: ParaCell[], n: number): ParaStageRowInput[] {
-  return cells.map((c) => {
-    if (c.paraNumber > n) {
-      return { paraNumber: c.paraNumber, personId: null, startedAt: null, finishedAt: null };
-    }
-    if (c.finishedAt) {
-      return { paraNumber: c.paraNumber, personId: c.personId, startedAt: c.startedAt, finishedAt: c.finishedAt };
-    }
-    return { paraNumber: c.paraNumber, personId: c.personId, startedAt: c.startedAt || TODAY, finishedAt: TODAY };
-  });
 }
 
 interface StageState {
@@ -145,7 +127,7 @@ export default function ParaStageEditor({ languageId, languageName, board }: Pro
     setSavingStage(key);
     startTransition(async () => {
       const { cells, value } = stateByStage[key];
-      const res = await saveParaStageAction(languageId, key, buildRows(cells, value));
+      const res = await saveParaStageAction(languageId, key, buildParaCountRows(cells, value, TODAY));
       if (res.error) toast({ type: "error", message: res.error });
       else {
         toast({ type: "success", message: `${label} saved.` });

@@ -1,9 +1,15 @@
 # TMS REST API (v1)
 
-A small, versioned JSON API over the **English Translation** work items, for machine clients
-(e.g. the "Zaki" assistant). It is additive: the web UI is unchanged, and every pipeline rule
-comes from the same code the UI uses (`lib/et.ts` → `computeCurrentStep` / `computeAdvance`,
-`lib/etMutations.ts` → `patchEtStages`).
+A small, versioned JSON API for machine clients (e.g. the "Zaki" assistant), covering both
+workspaces:
+
+- **English Translation** work items: `/api/v1/items`, `/api/v1/meta` ([jump](#english-translation-api)).
+- **Quranic Translation** languages, para progress and meetings: `/api/v1/quran/*`
+  ([jump](#quranic-translation-api)).
+
+It is additive: the web UI is unchanged, and every rule comes from the same code the UI uses
+(`lib/et.ts`, `lib/etMutations.ts`, `lib/progress.ts`, `lib/schedule.ts`, `lib/mutations.ts`,
+`lib/paraProgressMutations.ts`).
 
 - **Base URL:** `https://tms-dawateislami.vercel.app/api/v1`
 - **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`.
@@ -22,11 +28,19 @@ Authorization: Bearer $TMS_API_KEY
 - Keys look like `tms_` + 43 base64url characters.
 - Only the **SHA-256 hash** of a key is stored (`public.api_keys`). The plaintext is shown once,
   in the terminal, when the key is created, and is never saved anywhere.
-- **Scopes:** `items:read` (all `GET`s) and `items:write` (`PATCH .../pipeline`).
+- **Scopes:**
+
+  | Scope | Allows |
+  |-------|--------|
+  | `items:read` | English `GET`s (`/items`, `/items/{id}`, `/meta`) |
+  | `items:write` | `PATCH /items/{id}/pipeline` |
+  | `quran:read` | Every `GET /quran/*` |
+  | `quran:write` | `PATCH /quran/languages/{id}`, `POST /quran/meetings`, `PATCH /quran/meetings/{id}` |
 - **Rate limit:** about 100 requests per minute per key. Over the limit → `429` with a
   `Retry-After` header (seconds). The counter is in memory per server instance, so treat it
   as a soft limit.
-- Every API write is recorded in `public.api_audit_log` (key, item, request, note).
+- Every API write is recorded in `public.api_audit_log` (key, request, note). `item_id` holds the
+  English item id, or the language id for Quranic writes.
 
 ### Creating / revoking keys
 
@@ -35,10 +49,16 @@ migration `database/migrations/010_api_keys.sql` applied.
 
 ```bash
 # create — prints the key ONCE
-node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items:write"
+node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items:write quran:read quran:write"
+
+# add scopes to an existing key (the key itself doesn't change)
+node scripts/create-api-key.mjs --grant zaki-assistant --scopes "quran:read quran:write"
 
 # revoke every active key with that name
 node scripts/create-api-key.mjs --revoke zaki-assistant
+
+# all options
+node scripts/create-api-key.mjs --help
 ```
 
 Or in SQL: `UPDATE public.api_keys SET revoked_at = now() WHERE name = '<name>';`
@@ -58,12 +78,14 @@ Every error has the same shape and a matching HTTP status:
 | 400 | Bad query params / body / id |
 | 401 | Missing, malformed, unknown or revoked key |
 | 403 | Key lacks the scope for this endpoint |
-| 404 | Item not found |
+| 404 | Item / language / meeting not found |
 | 409 | Request conflicts with the pipeline state (e.g. wrong `advance_to`, item stopped) |
 | 429 | Rate limit exceeded |
 | 500 | Server / database error |
 
 ---
+
+# English Translation API
 
 ## Pipeline basics
 
@@ -288,8 +310,281 @@ curl -s "https://tms-dawateislami.vercel.app/api/v1/meta" -H "Authorization: Bea
 
 ---
 
+# Quranic Translation API
+
+Base: `https://tms-dawateislami.vercel.app/api/v1/quran`. Scopes: `quran:read` for every `GET`,
+`quran:write` for writes.
+
+## Basics
+
+- A **language** (e.g. Chinese, Pashto) belongs to a project and moves through a stage pipeline.
+  Each stage is tracked **per para (1–30)**. A para is *done* once it has a `finished_at` date.
+- **Pipelines** (`GET /quran/meta` → `pipelines`):
+
+  | Kind | Stages, in order |
+  |------|------------------|
+  | standard | translation → comparison → formation → tafteesh → designing → final_proof_reading |
+  | Braille | translation ("Translation (for Braille)") → comparison → convert_into_braille → tafteesh → final_proof_reading |
+
+  A language uses the Braille pipeline when its **name contains "braille"** (case-insensitive),
+  the same check the UI uses.
+- **Ordering rule** (from `lib/progress.ts`), counted in paras finished: comparison can't be ahead
+  of translation, and no other stage can be ahead of either of them. The API enforces this on
+  every para write. It only checks the stages a request touches, so an old inconsistency
+  elsewhere won't block an unrelated edit.
+- `pipeline_percent` = the sum of paras finished across the language's stages ÷ (stages × 30),
+  the same number the progress board shows.
+- **Weekly meetings** (`lib/schedule.ts`): a meeting is expected every 7 days on the language's
+  `assigned_day`.
+  - `schedule_state`: `done` (met in the last 7 days), `today`, `due`, `overdue` (14+ days, or
+    never met) or `none` (no assigned day).
+  - `needs_attention`: an in-progress language with no meeting in the last 14 days (or never).
+    This is the same count as the dashboard's "Needs Attention".
+  - `next_expected_meeting`: today if today is the assigned day, otherwise the next date that
+    falls on that weekday.
+  - `next_scheduled_meeting`: the soonest `next_meeting_date` (today or later) written on any
+    of the language's meetings.
+
+## `GET /quran/meta`
+
+```bash
+curl -s "https://tms-dawateislami.vercel.app/api/v1/quran/meta" -H "Authorization: Bearer $TMS_API_KEY"
+```
+
+```json
+{
+  "total_paras": 30,
+  "stages": [{ "stage": "translation", "label": "Translation" }, "…"],
+  "pipelines": {
+    "standard": [{ "stage": "translation", "label": "Translation" }, "…"],
+    "braille":  [{ "stage": "translation", "label": "Translation (for Braille)" }, "…"]
+  },
+  "braille_rule": "…", "ordering_rule": "…",
+  "work_statuses": ["not_started", "in_progress", "completed"],
+  "priorities": ["low", "medium", "high"],
+  "weekdays": ["Monday", "…", "Sunday"],
+  "workforce": [{ "id": "uuid", "name": "…", "active": true }],
+  "projects": [{ "id": "uuid", "name": "…" }]
+}
+```
+
+## `GET /quran/languages`
+
+| Param | Values | Notes |
+|-------|--------|-------|
+| `status` | `not_started` \| `in_progress` \| `completed` | `work_status` |
+| `country` | text | exact, case-insensitive |
+| `responsible` | person name | exact, case-insensitive, on `responsible_person` |
+| `priority` | `low` \| `medium` \| `high` | |
+| `project` | project name or id | name match is case-insensitive |
+| `needs_attention` | `true` \| `false` | see [Basics](#basics) |
+| `sort` | `progress` (highest first) \| `last-meeting` (longest ago first, never-met first) \| `country` \| `language` | default: language A–Z |
+| `page`, `limit` | ≥ 1; 1–200 | default 1, 50 |
+
+```bash
+curl -s "https://tms-dawateislami.vercel.app/api/v1/quran/languages?status=in_progress&needs_attention=true&sort=last-meeting" \
+  -H "Authorization: Bearer $TMS_API_KEY"
+```
+
+```json
+{
+  "total": 23, "page": 1, "limit": 50,
+  "languages": [{
+    "id": "uuid",
+    "language": "Chinese",
+    "country": "China",
+    "braille": false,
+    "responsible_person": "…",
+    "priority": "high",
+    "work_status": "in_progress",
+    "project": { "id": "uuid", "name": "…" },
+    "pipeline_percent": 92,
+    "paras_fully_finished": 25,
+    "stages": [{ "stage": "translation", "label": "Translation", "paras_finished": 30, "percent": 100 }, "…"],
+    "assigned_day": "Friday",
+    "last_meeting_at": "2026-07-23",
+    "days_since_last_meeting": 75,
+    "schedule_state": "overdue",
+    "schedule_label": "75 days overdue",
+    "next_expected_meeting": "2026-10-09",
+    "needs_attention": true
+  }]
+}
+```
+
+`paras_fully_finished` is the paras finished in the **last** stage of the pipeline, i.e. the
+paras that have cleared every stage.
+
+## `GET /quran/languages/{id}`
+
+Same fields as a list row, plus:
+
+- `pipeline`: the ordered stage keys for this language.
+- `stages[]`: adds `paras_in_progress` (started, not finished), `last_activity` (latest start
+  or finish date) and `paras`, a full 1–30 grid:
+  `{ para, status: "not_started"|"in_progress"|"done", person_id, person, started_at, finished_at }`.
+- `next_scheduled_meeting`
+- `meetings`: every meeting for the language, newest first, in the
+  [meeting shape](#get-quranmeetings).
+
+## `PATCH /quran/languages/{id}`
+
+Scope `quran:write`. Send any combination of meta fields and `para_progress`. Only the fields
+you send change. Unknown fields → `400`. If **anything** is invalid, nothing is written, and the
+`400` response lists every problem.
+
+**Meta fields** (written through `updateLanguage()`, the same function as the language edit form):
+
+| Field | Values |
+|-------|--------|
+| `responsible_person` | text (≤ 200) or `null` |
+| `priority` | `low` \| `medium` \| `high` \| `null` |
+| `work_status` | `not_started` \| `in_progress` \| `completed` |
+| `country` | non-empty text |
+| `assigned_day` | weekday (case-insensitive, e.g. `"monday"`) or `null` |
+
+**`para_progress`**: up to 20 entries, applied in order. Each entry is one of two forms:
+
+1. **Count** (`{stage, paras_finished, date?, allow_decrease?}`). This is exactly what the
+   progress page's "Para reached" + Save does:
+   - Paras 1…N count as finished. Paras that were already finished keep their dates and person.
+     Newly finished paras get `date` (default: today, Pakistan time).
+   - Paras above N are **cleared**. So lowering the number wipes those paras' data, and the
+     API refuses to lower it unless you also send `"allow_decrease": true`.
+2. **Single para** (`{stage, para, person_id?, started_at?, finished_at?}`):
+   - Edits one para. Only the fields you send change; `null` clears a field.
+   - `person_id` must be a workforce member (`/quran/meta` → `workforce`).
+   - `started_at` can't be after `finished_at`.
+
+Both forms are saved through `saveParaStage()`, the same function the progress editor uses.
+The stage must belong to the language's pipeline (e.g. `convert_into_braille` only exists for
+Braille). The [ordering rule](#basics) is checked against the result.
+
+```bash
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/quran/languages/$LANGUAGE_ID" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{
+        "responsible_person": "…",
+        "assigned_day": "Monday",
+        "para_progress": [
+          { "stage": "translation", "paras_finished": 12 },
+          { "stage": "comparison", "para": 9, "person_id": "uuid", "started_at": "2026-10-06" }
+        ],
+        "note": "Weekly update from the language team"
+      }'
+```
+
+```json
+{
+  "ok": true,
+  "applied": {
+    "meta": { "responsible_person": "…", "assigned_day": "Monday" },
+    "para_counts": { "translation": { "before": 10, "after": 12 }, "comparison": { "before": 8, "after": 8 } }
+  },
+  "note": "Weekly update from the language team",
+  "language": { "...": "same shape as GET /quran/languages/{id}, read fresh" }
+}
+```
+
+An ordering violation looks like this:
+
+```json
+{ "error": "Invalid request.", "details": ["formation (8 paras) can't be ahead of Translation (10) or Comparison (5)."] }
+```
+
+## `GET /quran/meetings`
+
+| Param | Values |
+|-------|--------|
+| `language_id` | UUID |
+| `from`, `to` | `YYYY-MM-DD` (inclusive, on `meeting_date`) |
+| `page`, `limit` | default 1, 50 (max 200) |
+
+Newest first. Each meeting:
+
+```json
+{
+  "id": "uuid", "language_id": "uuid", "language": "Chinese", "country": "China",
+  "meeting_date": "2026-10-05", "meeting_type": null,
+  "participants": "…", "discussion_points": "…", "translation_progress": null,
+  "progress_percentage": 40, "action_items": "…", "next_action": null,
+  "next_meeting_date": "2026-10-12", "meeting_notes": null,
+  "created_at": "…", "updated_at": "…"
+}
+```
+
+`GET /quran/meetings/{id}` returns a single meeting in the same shape.
+
+## `POST /quran/meetings`
+
+Scope `quran:write`. Records a meeting through `createMeeting()`, the same function as the
+"Add meeting" form.
+
+| Field | Required | Values |
+|-------|----------|--------|
+| `language_id` | yes | UUID of an existing language |
+| `meeting_date` | no | `YYYY-MM-DD`; default today (Pakistan time) |
+| `meeting_type`, `participants`, `discussion_points`, `translation_progress`, `action_items`, `meeting_notes` | no | text (≤ 5000) or `null` |
+| `progress_percentage` | no | integer 0–100 or `null` |
+| `next_meeting_date` | no | `YYYY-MM-DD` or `null` |
+| `note` | no | audit note (≤ 1000) |
+
+After saving, `languages.last_meeting_at` is set to the language's **latest** meeting date, so
+adding an older meeting doesn't move it backwards. Returns `201`:
+
+```bash
+curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/quran/meetings" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d "{ \"language_id\": \"$LANGUAGE_ID\", \"meeting_date\": \"2026-10-06\",
+        \"participants\": \"…\", \"discussion_points\": \"…\", \"action_items\": \"…\",
+        \"progress_percentage\": 40, \"next_meeting_date\": \"2026-10-13\" }"
+```
+
+```json
+{
+  "ok": true, "note": null,
+  "meeting": { "...": "meeting shape" },
+  "language": { "id": "uuid", "language": "…", "assigned_day": "Monday", "last_meeting_at": "2026-10-06",
+                "days_since_last_meeting": 0, "schedule_state": "done", "schedule_label": "Met this week",
+                "next_expected_meeting": "2026-10-12", "needs_attention": false }
+}
+```
+
+## `PATCH /quran/meetings/{id}`
+
+Scope `quran:write`. Takes the same fields as `POST`, minus `language_id`, which can't be
+changed. Only the fields you send change; `null` clears a field. `meeting_date` can't be
+cleared. The response has the same shape as `POST` (with `200`).
+
+## `GET /quran/schedule`
+
+The weekly meeting schedule: the same data as the `/schedule` page, i.e. every
+**in-progress** language. Sorted most overdue first: never-met languages, then by days since
+the last meeting.
+
+```json
+{
+  "total": 23,
+  "schedule": [{
+    "id": "uuid", "language": "Pashto", "country": "…", "responsible_person": "…",
+    "project": { "id": "uuid", "name": "…" },
+    "assigned_day": "Tuesday", "last_meeting_at": "2026-06-15", "days_since_last_meeting": 113,
+    "schedule_state": "overdue", "schedule_label": "113 days overdue",
+    "next_expected_meeting": "2026-10-07", "needs_attention": true,
+    "next_scheduled_meeting": null
+  }]
+}
+```
+
+---
+
 ## Freshness
 
-`GET`s are served from the same data cache as the web UI, which refreshes at least every
-60 seconds and immediately after any change, whether made in the UI or through the API.
-`PATCH` always reads the item fresh from the database before applying any rules.
+`GET`s use the same reads as the web UI:
+
+- English items and Quranic para progress come from the shared data cache. It refreshes at
+  least every 60 seconds, and immediately after any change, whether made in the UI or through
+  the API.
+- Quranic languages, meetings and the schedule are read live.
+
+Writes always read fresh from the database before applying any rules.
