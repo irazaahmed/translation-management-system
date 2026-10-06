@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "./supabase/server";
 import {
   blankStages,
@@ -375,9 +376,15 @@ export interface StagePatch {
 /**
  * Patch one or more stages (only the provided fields) and recompute the item's
  * status. Used by the quick "advance to next step" control on the item page.
+ * `client` is only passed by the API-key route (/api/v1), which has no user
+ * session and uses the service-role client; everyone else gets the session one.
  */
-export async function patchEtStages(itemId: string, patches: StagePatch[]): Promise<void> {
-  const supabase = await getWriteClient();
+export async function patchEtStages(
+  itemId: string,
+  patches: StagePatch[],
+  client?: SupabaseClient
+): Promise<void> {
+  const supabase = client ?? (await getWriteClient());
 
   for (const p of patches) {
     const patch: Record<string, unknown> = {};

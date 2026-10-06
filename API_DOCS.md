@@ -1,0 +1,295 @@
+# TMS REST API (v1)
+
+A small, versioned JSON API over the **English Translation** work items, for machine clients
+(e.g. the "Zaki" assistant). It is additive: the web UI is unchanged, and every pipeline rule
+comes from the same code the UI uses (`lib/et.ts` → `computeCurrentStep` / `computeAdvance`,
+`lib/etMutations.ts` → `patchEtStages`).
+
+- **Base URL:** `https://tms-dawateislami.vercel.app/api/v1`
+- **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`.
+- **CORS:** none — the API is meant for server-to-server calls, not browsers.
+
+---
+
+## Authentication
+
+Every request needs an API key:
+
+```
+Authorization: Bearer $TMS_API_KEY
+```
+
+- Keys look like `tms_` + 43 base64url characters.
+- Only the **SHA-256 hash** of a key is stored (`public.api_keys`). The plaintext is shown once,
+  in the terminal, when the key is created, and is never saved anywhere.
+- **Scopes:** `items:read` (all `GET`s) and `items:write` (`PATCH .../pipeline`).
+- **Rate limit:** about 100 requests per minute per key. Over the limit → `429` with a
+  `Retry-After` header (seconds). The counter is in memory per server instance, so treat it
+  as a soft limit.
+- Every API write is recorded in `public.api_audit_log` (key, item, request, note).
+
+### Creating / revoking keys
+
+Needs `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, and
+migration `database/migrations/010_api_keys.sql` applied.
+
+```bash
+# create — prints the key ONCE
+node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items:write"
+
+# revoke every active key with that name
+node scripts/create-api-key.mjs --revoke zaki-assistant
+```
+
+Or in SQL: `UPDATE public.api_keys SET revoked_at = now() WHERE name = '<name>';`
+
+---
+
+## Errors
+
+Every error has the same shape and a matching HTTP status:
+
+```json
+{ "error": "Invalid query parameters.", "details": ["limit must be an integer 1-200."] }
+```
+
+| Status | When |
+|--------|------|
+| 400 | Bad query params / body / id |
+| 401 | Missing, malformed, unknown or revoked key |
+| 403 | Key lacks the scope for this endpoint |
+| 404 | Item not found |
+| 409 | Request conflicts with the pipeline state (e.g. wrong `advance_to`, item stopped) |
+| 429 | Rate limit exceeded |
+| 500 | Server / database error |
+
+---
+
+## Pipeline basics
+
+Stage codes come from `lib/et.ts`. Pipelines **depend on the item type**:
+
+| Type(s) | Pipeline |
+|---------|----------|
+| standard (fsp, wbl, dwk, aer, rpr, …) | TR → IF → CM → ED → NR → ST → FF → FPR |
+| `wsb` (Weekly Speech Brothers) | standard 8 → **PIS → FFM** |
+| `mgz` (Magazine) | TR … FF → **DSN** (Designing) → FPR |
+| `bks` (Books) | standard 8 → **RTP** (Ready to Print) |
+
+`GET /api/v1/meta` returns the exact list per type.
+
+- A stage is **in progress** when it has a `sent_date` and no `received_date`.
+- **Currently at** = the highest in-progress stage. With nothing in progress, the item is
+  *Pending Assignment*, *Awaiting final email* (all stages done) or *Completed* (final email sent).
+- Stages marked N/A or Merged in the UI are skipped (`state: "not_applicable" | "merged"`)
+  and don't count toward `progress`.
+
+---
+
+## `GET /api/v1/items`
+
+Lists work items (Quran-e-Pak items are excluded, as in the UI). Scope: `items:read`.
+
+| Param | Values | Notes |
+|-------|--------|-------|
+| `category` | `weekly-docs` \| `magazine` \| `books` \| `other` | weekly-docs = wsb, wbl, fsp |
+| `status` | `active` \| `completed` \| `stopped` | active = not completed and not stopped |
+| `type` | `wsb` `wbl` `fsp` `bks` `dwk` `mgz` `aer` `rpr` | |
+| `holder` | name | exact match (case-insensitive) on the **current** holder |
+| `stage` | stage code, e.g. `ST` | the **current** stage |
+| `sort` | `at-step-since` \| `delivery-date` | both oldest first; missing dates last. Default: creation order |
+| `page` | ≥ 1 | default 1 |
+| `limit` | 1–200 | default 50 |
+
+```bash
+curl -s "https://tms-dawateislami.vercel.app/api/v1/items?category=weekly-docs&status=active&sort=at-step-since&limit=2" \
+  -H "Authorization: Bearer $TMS_API_KEY"
+```
+
+```json
+{
+  "total": 14,
+  "page": 1,
+  "limit": 2,
+  "items": [
+    {
+      "id": "0b6c…",
+      "title": "Weekly Speech 03-10-2026",
+      "type": "wsb",
+      "type_label": "Weekly Speech Brothers",
+      "category": "weekly-docs",
+      "status": "in_progress",
+      "stopped": false,
+      "current_step": { "code": "ST", "name": "S.Tafteesh" },
+      "current_label": "S.Tafteesh",
+      "active_stages": ["ST"],
+      "holder": "Mehmood Madani",
+      "at_step_since": "2026-10-03",
+      "days_at_step": 3,
+      "progress": { "done": 5, "total": 10 },
+      "delivery_date": "2026-10-30",
+      "priority": "normal",
+      "word_count": 6816,
+      "net_word_count": 4660,
+      "in_return": null
+    }
+  ]
+}
+```
+
+- `status` is `pending_assignment` | `in_progress` | `completed`, worked out live from the stages.
+- `current_step` is `null` when nothing is in progress; `current_label` then says why
+  (`Pending Assignment`, `Awaiting final email`, `Completed`).
+- `net_word_count`: for `wsb`, the fixed pre-translated sections are subtracted (same as the UI's counts).
+- `in_return`: `{stage, holder, since}` when the item has been sent back to fix a missing part.
+
+---
+
+## `GET /api/v1/items/{id}`
+
+Full detail for one item. Scope: `items:read`.
+
+```bash
+curl -s "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID" \
+  -H "Authorization: Bearer $TMS_API_KEY"
+```
+
+```json
+{
+  "id": "0b6c…",
+  "title": "…",
+  "type": "fsp",
+  "type_label": "Friday Speech",
+  "category": "weekly-docs",
+  "category_label": "Weekly Docs",
+  "board": "main_2026",
+  "status": "in_progress",
+  "stopped": false,
+  "priority": "normal",
+  "word_count": 1200,
+  "net_word_count": 1200,
+  "received_date": "2026-09-28",
+  "delivery_date": "2026-10-30",
+  "final_email_date": null,
+  "sender": { "name": null, "email": null },
+  "further_process": null,
+  "current_step": { "code": "ST", "name": "S.Tafteesh" },
+  "currently_at": "Currently at S.Tafteesh with Mehmood Madani since 2026-10-03 (3 days here)",
+  "holder": "Mehmood Madani",
+  "at_step_since": "2026-10-03",
+  "days_at_step": 3,
+  "progress": { "done": 5, "total": 8 },
+  "next_action": { "action": "move", "from": "ST", "advance_to": "FF" },
+  "pipeline": [
+    { "code": "TR", "name": "Translation", "seq": 1, "state": "done", "holder": "…", "sent_date": "2026-09-28", "received_date": "2026-09-30" },
+    { "code": "ST", "name": "S.Tafteesh", "seq": 6, "state": "in_progress", "holder": "Mehmood Madani", "sent_date": "2026-10-03", "received_date": null },
+    { "code": "FF", "name": "Final Formatting", "seq": 7, "state": "pending", "holder": null, "sent_date": null, "received_date": null }
+  ],
+  "tracking": [
+    { "kind": "stage", "stage": "TR", "stage_name": "Translation", "holder": "…", "from": "2026-09-28", "to": "2026-09-30" },
+    { "kind": "return", "stage": "ED", "stage_name": "Editing", "holder": "…", "from": "2026-10-01", "to": "2026-10-02", "note": "missing para 3" }
+  ],
+  "created_at": "…",
+  "updated_at": "…"
+}
+```
+
+- `pipeline[].state`: `pending` | `in_progress` | `done` | `not_applicable` | `merged`.
+- `tracking`: who held the item, and when. It is built from each stage's holder and dates, plus
+  any "returned to fix" entries, sorted by start date. (TMS has no separate history table, so if
+  a stage's holder is changed later, only the latest holder for that stage is known.)
+- `next_action`: what the item page's button would do next. `null` when the item is completed
+  or only awaiting its final email.
+  - `start`: the stage is waiting to be given out (`advance_to` = that stage).
+  - `move`: the current stage goes back and the next one is sent out.
+  - `finish`: the last stage comes back (`advance_to` = `"DONE"`).
+- `pages` isn't returned: TMS doesn't store a page count for English items.
+
+---
+
+## `PATCH /api/v1/items/{id}/pipeline`
+
+Updates the pipeline. Scope: `items:write`. Send **one** of the two forms below. `note`
+(optional, ≤ 1000 chars) goes to the audit log and is echoed back.
+
+### 1) `advance_to`: same as the "Move →" / "Start" button
+
+```bash
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/pipeline" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "advance_to": "FPR", "holder": "Rafique Attari", "note": "ST complete, moved to FPR" }'
+```
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `advance_to` | yes | Must equal `next_action.advance_to` from the detail endpoint, otherwise `409` (the response includes the correct `next_action`). |
+| `holder` | no | Who gets the next stage. Must be a workforce name (`/meta` → `holders`, case-insensitive). If omitted, the stage keeps any holder already set on it. |
+| `date` | no | Date to stamp; defaults to today (Pakistan time). |
+
+What happens, exactly as in the UI:
+
+- **move:** the current stage gets `received_date = date`; the next stage gets `sent_date = date` (and `holder`).
+- **start:** the waiting stage gets `sent_date = date` (and `holder`).
+- **finish** (`"DONE"`): the last stage gets `received_date = date`.
+
+The item's status is then recalculated from all of its stages.
+
+### 2) `stages`: explicit edits (like the pipeline editor)
+
+```bash
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/pipeline" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "stages": [
+        { "code": "ST",  "received_date": "2026-10-06" },
+        { "code": "FPR", "holder": "Rafique Attari", "sent_date": "2026-10-06" }
+      ], "note": "…" }'
+```
+
+- Each entry needs a `code` that exists on this item, plus at least one of `holder`,
+  `sent_date` or `received_date`. Only the fields you send are changed; `null` clears a field.
+- Up to 20 entries. If any entry is invalid, nothing is written and a `400` lists every problem.
+
+### Response (both forms)
+
+```json
+{
+  "ok": true,
+  "applied": [
+    { "stage": "ST", "received_back_date": "2026-10-06" },
+    { "stage": "FPR", "person": "Rafique Attari", "sent_date": "2026-10-06" }
+  ],
+  "note": "ST complete, moved to FPR",
+  "currently_at": "Currently at Final Proofreading with Rafique Attari since 2026-10-06 (0 days here)",
+  "item": { "...": "same shape as GET /items/{id}" }
+}
+```
+
+Stopped items return `409`. Resume them in TMS first.
+
+---
+
+## `GET /api/v1/meta`
+
+Stage codes, the pipeline for each type, categories, and the holder (workforce) list. Scope: `items:read`.
+
+```bash
+curl -s "https://tms-dawateislami.vercel.app/api/v1/meta" -H "Authorization: Bearer $TMS_API_KEY"
+```
+
+```json
+{
+  "stages": [{ "code": "TR", "name": "Translation" }, "…"],
+  "types": [{ "code": "wsb", "label": "Weekly Speech Brothers", "category": "weekly-docs",
+              "pipeline": ["TR","IF","CM","ED","NR","ST","FF","FPR","PIS","FFM"] }, "…"],
+  "categories": [{ "slug": "weekly-docs", "label": "Weekly Docs" }, "…"],
+  "holders": [{ "name": "Mehmood Madani", "active": true }, "…"]
+}
+```
+
+---
+
+## Freshness
+
+`GET`s are served from the same data cache as the web UI, which refreshes at least every
+60 seconds and immediately after any change, whether made in the UI or through the API.
+`PATCH` always reads the item fresh from the database before applying any rules.
