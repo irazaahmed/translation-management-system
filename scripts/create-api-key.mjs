@@ -28,7 +28,7 @@ const HELP = `Usage:
 
 Scopes (space or comma separated; default "items:read"):
   items:read   GET /api/v1/items, /items/{id}, /meta          (English Translation)
-  items:write  PATCH /api/v1/items/{id}/pipeline
+  items:write  POST /api/v1/items, PATCH /api/v1/items/{id}/pipeline
   quran:read   GET /api/v1/quran/*                            (Quranic Translation)
   quran:write  PATCH/POST /api/v1/quran/languages, /quran/meetings`;
 

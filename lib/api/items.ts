@@ -11,7 +11,9 @@ import {
   isQuranType,
   isWsbType,
   itemCategory,
+  parseTitleDate,
   stageName,
+  TYPE_LABELS,
   typeLabel,
   type CurrentStep,
   type EtItem,
@@ -22,7 +24,7 @@ import {
   type ItemCategory,
   type StageCode,
 } from "@/lib/et";
-import type { StagePatch } from "@/lib/etMutations";
+import type { CreateEtItemInput, StagePatch } from "@/lib/etMutations";
 import { isIsoDate, todayPk } from "./common";
 
 export { UUID_RE, isIsoDate, todayPk } from "./common";
@@ -363,4 +365,98 @@ export function buildPipelinePatches(
   });
   if (problems.length) return { error: "Invalid stages.", details: problems };
   return { patches };
+}
+
+// ---- POST /items body -> CreateEtItemInput ----
+
+const CREATE_KEYS = new Set([
+  "title",
+  "type",
+  "received_date",
+  "delivery_date",
+  "word_count",
+  "final_email_date",
+  "priority",
+  "further_process",
+  "sender_name",
+  "sender_email",
+  "allow_duplicate",
+  "note",
+]);
+const ITEM_PRIORITIES = ["low", "normal", "urgent"];
+
+/**
+ * Validate a new-item body with the same rules as the "New item" form
+ * (createEtItemAction): title required, delivery date auto-read from a title
+ * ending in "(dd-mm-yy)" when not given, board fixed to Main (2026).
+ */
+export function parseCreateItem(
+  body: Record<string, unknown>
+): { input: CreateEtItemInput } | { error: string; details?: unknown } {
+  const problems: string[] = [];
+  const unknown = Object.keys(body).filter((k) => !CREATE_KEYS.has(k));
+  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) problems.push("title is required.");
+  else if (title.length > 300) problems.push("title must be at most 300 characters.");
+
+  let type: string | null = null;
+  if (body.type !== undefined && body.type !== null && body.type !== "") {
+    const t = typeof body.type === "string" ? body.type.trim().toLowerCase() : "";
+    if (t in TYPE_LABELS) type = t;
+    else problems.push(`type must be one of: ${Object.keys(TYPE_LABELS).join(", ")} (or null).`);
+  }
+
+  const date = (field: string): string | null => {
+    const v = body[field];
+    if (v === undefined || v === null || v === "") return null;
+    if (isIsoDate(v)) return v;
+    problems.push(`${field} must be YYYY-MM-DD or null.`);
+    return null;
+  };
+  const received_date = date("received_date");
+  const final_email_date = date("final_email_date");
+  const delivery_date = date("delivery_date") ?? (title ? parseTitleDate(title) : null);
+
+  let word_count: number | null = null;
+  if (body.word_count !== undefined && body.word_count !== null) {
+    if (Number.isInteger(body.word_count) && (body.word_count as number) >= 0) word_count = body.word_count as number;
+    else problems.push("word_count must be a non-negative integer or null.");
+  }
+
+  let priority: CreateEtItemInput["priority"] = null;
+  if (body.priority !== undefined && body.priority !== null && body.priority !== "") {
+    if (ITEM_PRIORITIES.includes(body.priority as string)) priority = body.priority as CreateEtItemInput["priority"];
+    else problems.push(`priority must be one of: ${ITEM_PRIORITIES.join(", ")} (or null).`);
+  }
+
+  const text = (field: string, max: number): string | null => {
+    const v = body[field];
+    if (v === undefined || v === null) return null;
+    if (typeof v === "string" && v.length <= max) return v.trim() || null;
+    problems.push(`${field} must be a string (max ${max}) or null.`);
+    return null;
+  };
+  const further_process = text("further_process", 5000);
+  const sender_name = text("sender_name", 200);
+  const sender_email = text("sender_email", 200);
+  if (sender_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender_email)) problems.push("sender_email is not a valid email.");
+
+  if (problems.length) return { error: "Invalid request.", details: problems };
+  return {
+    input: {
+      title,
+      type,
+      board: "main_2026",
+      received_date,
+      word_count,
+      delivery_date,
+      final_email_date,
+      priority,
+      further_process,
+      sender_name,
+      sender_email,
+    },
+  };
 }

@@ -13,6 +13,7 @@
 | `GET /items`: filters `category/status/type/holder/stage`, `sort`, `page/limit` | `app/api/v1/items/route.ts` |
 | `GET /items/{id}`: meta, pipeline, tracking history, `currently_at`, `next_action` | `app/api/v1/items/[id]/route.ts` |
 | `PATCH /items/{id}/pipeline`: `advance_to` (same as the "Move →" button) or explicit `stages` | `app/api/v1/items/[id]/pipeline/route.ts` |
+| `POST /items`: create a new item, same rules as the "New item" form, duplicate-title guard (added 2026-10-07) | `app/api/v1/items/route.ts` |
 | `GET /meta`: stage codes, per-type pipelines, categories, holders | `app/api/v1/meta/route.ts` |
 | Shared shaping/validation, reusing `computeCurrentStep` / `computeAdvance` | `lib/api/items.ts` |
 | Key create/revoke script | `scripts/create-api-key.mjs` |

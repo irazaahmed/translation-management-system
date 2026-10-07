@@ -43,9 +43,12 @@ export interface CreateEtItemInput {
   sender_email: string | null;
 }
 
-/** Create an item plus its 8 (blank) pipeline stage rows. Returns the new id. */
-export async function createEtItem(input: CreateEtItemInput): Promise<string> {
-  const supabase = await getWriteClient();
+/**
+ * Create an item plus its 8 (blank) pipeline stage rows. Returns the new id.
+ * `client` is only passed by the API-key route (/api/v1/items).
+ */
+export async function createEtItem(input: CreateEtItemInput, client?: SupabaseClient): Promise<string> {
+  const supabase = client ?? (await getWriteClient());
 
   const { data: item, error } = await supabase
     .from("et_items")

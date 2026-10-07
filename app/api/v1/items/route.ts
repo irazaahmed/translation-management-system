@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { apiError, requireApiKey } from "@/lib/api/auth";
-import { CATEGORY_SLUGS, isStageCode, listItem } from "@/lib/api/items";
+import { noteError, readJsonObject } from "@/lib/api/common";
+import {
+  CATEGORY_SLUGS,
+  isStageCode,
+  itemDetail,
+  listItem,
+  loadItemFresh,
+  parseCreateItem,
+} from "@/lib/api/items";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
-import { TYPE_LABELS, itemCategory } from "@/lib/et";
+import { createEtItem } from "@/lib/etMutations";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { ET_CACHE_TAG, TYPE_LABELS, itemCategory } from "@/lib/et";
 
 export const dynamic = "force-dynamic";
 
@@ -64,5 +75,61 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("GET /api/v1/items failed:", err);
     return apiError(500, "Failed to load items.");
+  }
+}
+
+/**
+ * POST /api/v1/items — create a work item, through createEtItem(), the same
+ * function behind the "New item" form (blank pipeline stages for its type).
+ */
+export async function POST(request: Request) {
+  const auth = await requireApiKey(request, "items:write");
+  if (auth.response) return auth.response;
+
+  const body = await readJsonObject(request);
+  if (!body) return apiError(400, "Body must be a JSON object.");
+  const badNote = noteError(body.note);
+  if (badNote) return apiError(400, badNote);
+  const parsed = parseCreateItem(body);
+  if ("error" in parsed) return apiError(400, parsed.error, parsed.details);
+  const { input } = parsed;
+
+  try {
+    const admin = createAdminClient();
+
+    // Guard against accidental double-creates (e.g. a retried request).
+    if (body.allow_duplicate !== true) {
+      const { data: same, error } = await admin.from("et_items").select("id, title").ilike("title", input.title.replace(/[\\%_]/g, "\\$&"));
+      if (error) throw error;
+      if (same && same.length > 0) {
+        return apiError(409, "An item with this title already exists. Send \"allow_duplicate\": true to create it anyway.", {
+          existing: same.map((s) => ({ id: s.id, title: s.title })),
+        });
+      }
+    }
+
+    const id = await createEtItem(input, admin);
+
+    // Same cache drop as the UI's server actions (revalidateEt in etActions.ts).
+    revalidateTag(ET_CACHE_TAG, { expire: 0 });
+    revalidatePath("/et");
+    revalidatePath("/et/items");
+
+    const note = typeof body.note === "string" ? body.note : null;
+    const { error: auditError } = await admin.from("api_audit_log").insert({
+      key_id: auth.key.id,
+      key_name: auth.key.name,
+      item_id: id,
+      action: "item.create",
+      request: { ...body, note: undefined },
+      note,
+    });
+    if (auditError) console.error("api_audit_log insert failed:", auditError.message);
+
+    const item = await loadItemFresh(admin, id);
+    return NextResponse.json({ ok: true, note, item: itemDetail(item!, []) }, { status: 201 });
+  } catch (err) {
+    console.error("POST /api/v1/items failed:", err);
+    return apiError(500, "Failed to create the item.");
   }
 }

@@ -33,7 +33,7 @@ Authorization: Bearer $TMS_API_KEY
   | Scope | Allows |
   |-------|--------|
   | `items:read` | English `GET`s (`/items`, `/items/{id}`, `/meta`) |
-  | `items:write` | `PATCH /items/{id}/pipeline` |
+  | `items:write` | `POST /items` (create), `PATCH /items/{id}/pipeline` |
   | `quran:read` | Every `GET /quran/*` |
   | `quran:write` | `PATCH /quran/languages/{id}`, `POST /quran/meetings`, `PATCH /quran/meetings/{id}` |
 - **Rate limit:** about 100 requests per minute per key. Over the limit → `429` with a
@@ -228,6 +228,43 @@ curl -s "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID" \
 - `pages` isn't returned: TMS doesn't store a page count for English items.
 
 ---
+
+## `POST /api/v1/items`
+
+Creates a work item. Scope: `items:write`. It goes through `createEtItem()`, the same function
+as the "New item" form, so the item gets the blank pipeline for its type (8 stages; wsb 10,
+mgz 9 with DSN, bks 9 with RTP) and starts as *Pending Assignment*.
+
+| Field | Required | Values |
+|-------|----------|--------|
+| `title` | yes | text (≤ 300) |
+| `type` | no | `wsb` `wbl` `fsp` `bks` `dwk` `mgz` `aer` `rpr`, or `null` |
+| `received_date` | no | `YYYY-MM-DD` |
+| `delivery_date` | no | `YYYY-MM-DD`. If omitted, it's read from a title ending in `(dd-mm-yy)`, same as the form |
+| `word_count` | no | integer ≥ 0 (raw count; for wsb, `net_word_count` subtracts the pre-translated parts) |
+| `final_email_date` | no | `YYYY-MM-DD` |
+| `priority` | no | `low` \| `normal` \| `urgent` |
+| `further_process` | no | text (≤ 5000), shown as the item's notes |
+| `sender_name`, `sender_email` | no | text |
+| `allow_duplicate` | no | `true` to create even if an item with the same title (case-insensitive) exists |
+| `note` | no | audit note (≤ 1000) |
+
+- Items are created on the Main (2026) board, like the form does.
+- If an item with the same title already exists, the response is `409`, and `details.existing`
+  lists the matching items. This stops a retried request from creating a duplicate.
+- Unknown fields → `400`. If anything is invalid, nothing is created, and every problem is
+  listed.
+- To give the first stage out, follow up with `PATCH /items/{id}/pipeline`
+  `{"advance_to": "TR", "holder": "…"}`.
+
+```bash
+curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/items" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "title": "Fri Bayan - Example (30-10-26)", "type": "fsp", "word_count": 1200,
+        "received_date": "2026-10-07", "priority": "normal", "note": "Added on request" }'
+```
+
+Returns `201` with `{ "ok": true, "note": …, "item": { …same shape as GET /items/{id}… } }`.
 
 ## `PATCH /api/v1/items/{id}/pipeline`
 
