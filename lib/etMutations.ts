@@ -25,8 +25,10 @@ export interface AddEtReturnInput {
  * request-scoped Supabase client bound to the logged-in user's session so RLS
  * applies. Callers (server actions) must gate with requireStaff().
  */
-async function getWriteClient() {
-  return await createServerSupabase();
+async function getWriteClient(client?: SupabaseClient) {
+  // `client` is only passed by the API-key routes (/api/v1), which have no
+  // user session and use the service-role client.
+  return client ?? (await createServerSupabase());
 }
 
 export interface CreateEtItemInput {
@@ -48,7 +50,7 @@ export interface CreateEtItemInput {
  * `client` is only passed by the API-key route (/api/v1/items).
  */
 export async function createEtItem(input: CreateEtItemInput, client?: SupabaseClient): Promise<string> {
-  const supabase = client ?? (await getWriteClient());
+  const supabase = await getWriteClient(client);
 
   const { data: item, error } = await supabase
     .from("et_items")
@@ -88,8 +90,8 @@ export type UpdateEtItemInput = Partial<
   >
 >;
 
-export async function updateEtItem(itemId: string, input: UpdateEtItemInput): Promise<void> {
-  const supabase = await getWriteClient();
+export async function updateEtItem(itemId: string, input: UpdateEtItemInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_items").update(input).eq("id", itemId);
   if (error) throw error;
 }
@@ -99,8 +101,8 @@ export async function updateEtItem(itemId: string, input: UpdateEtItemInput): Pr
  * (and reused as the item's "Notes / Further process"). Reuses further_process
  * so no schema change is needed.
  */
-export async function setEtItemComment(itemId: string, comment: string | null): Promise<void> {
-  const supabase = await getWriteClient();
+export async function setEtItemComment(itemId: string, comment: string | null, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase
     .from("et_items")
     .update({ further_process: comment?.trim() || null })
@@ -108,16 +110,16 @@ export async function setEtItemComment(itemId: string, comment: string | null): 
   if (error) throw error;
 }
 
-export async function deleteEtItem(itemId: string): Promise<void> {
-  const supabase = await getWriteClient();
+export async function deleteEtItem(itemId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   // et_stages cascade-delete via FK.
   const { error } = await supabase.from("et_items").delete().eq("id", itemId);
   if (error) throw error;
 }
 
 /** Stop (skip) or resume a project. */
-export async function setEtStopped(itemId: string, stopped: boolean): Promise<void> {
-  const supabase = await getWriteClient();
+export async function setEtStopped(itemId: string, stopped: boolean, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_items").update({ stopped }).eq("id", itemId);
   if (error) throw error;
 }
@@ -143,9 +145,10 @@ export async function saveEtStages(
   itemId: string,
   stages: StageUpsert[],
   finalEmailDate?: string | null,
-  finalEmailDate2?: string | null
+  finalEmailDate2?: string | null,
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
 
   // The seq order is type-aware (magazine inserts Designing before FPR), so we
   // need the item's type to number the stages correctly.
@@ -189,8 +192,8 @@ export async function saveEtStages(
 }
 
 /** Add a "return to complete missing part" entry for an item. */
-export async function addEtReturn(itemId: string, input: AddEtReturnInput): Promise<void> {
-  const supabase = await getWriteClient();
+export async function addEtReturn(itemId: string, input: AddEtReturnInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_returns").insert([
     {
       item_id: itemId,
@@ -204,22 +207,30 @@ export async function addEtReturn(itemId: string, input: AddEtReturnInput): Prom
   if (error) throw error;
 }
 
-/** Mark an existing return as completed (its received-back date). */
+/**
+ * Update a return. The UI only marks it completed (received_back_date); the
+ * API can also edit the other fields. Only the keys present in `patch` change.
+ */
 export async function updateEtReturn(
   returnId: string,
-  patch: { received_back_date?: string | null }
+  patch: Partial<AddEtReturnInput>,
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
-  const { error } = await supabase
-    .from("et_returns")
-    .update({ received_back_date: patch.received_back_date || null })
-    .eq("id", returnId);
+  const supabase = await getWriteClient(client);
+  const update: Record<string, unknown> = {};
+  if ("stage" in patch) update.stage = patch.stage ?? null;
+  if ("note" in patch) update.note = patch.note?.trim() || null;
+  if ("person" in patch) update.person = patch.person?.trim() || null;
+  if ("sent_date" in patch) update.sent_date = patch.sent_date || null;
+  if ("received_back_date" in patch) update.received_back_date = patch.received_back_date || null;
+  if (Object.keys(update).length === 0) return;
+  const { error } = await supabase.from("et_returns").update(update).eq("id", returnId);
   if (error) throw error;
 }
 
 /** Delete a return entry. */
-export async function deleteEtReturn(returnId: string): Promise<void> {
-  const supabase = await getWriteClient();
+export async function deleteEtReturn(returnId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_returns").delete().eq("id", returnId);
   if (error) throw error;
 }
@@ -237,8 +248,8 @@ export interface EtPersonInput {
 }
 
 /** Add a new workforce member. */
-export async function addEtPerson(input: EtPersonInput): Promise<void> {
-  const supabase = await getWriteClient();
+export async function addEtPerson(input: EtPersonInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_people").insert([
     {
       name: input.name.trim(),
@@ -259,9 +270,10 @@ export async function addEtPerson(input: EtPersonInput): Promise<void> {
 export async function updateEtPerson(
   personId: string,
   prevName: string,
-  input: EtPersonInput
+  input: EtPersonInput,
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
   const newName = input.name.trim();
 
   const { error } = await supabase
@@ -293,8 +305,8 @@ export async function updateEtPerson(
 }
 
 /** Remove a workforce member (does not touch their past work history). */
-export async function deleteEtPerson(personId: string): Promise<void> {
-  const supabase = await getWriteClient();
+export async function deleteEtPerson(personId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_people").delete().eq("id", personId);
   if (error) throw error;
 }
@@ -308,8 +320,8 @@ export async function addEtAssignment(input: {
   person_id: string;
   item_id: string;
   note: string | null;
-}): Promise<void> {
-  const supabase = await getWriteClient();
+}, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
 
   // New entries go to the end of this person's queue.
   const { data: last } = await supabase
@@ -336,9 +348,10 @@ export async function addEtAssignment(input: {
 /** Patch a planned assignment's note and/or done flag. */
 export async function updateEtAssignment(
   assignmentId: string,
-  patch: { note?: string | null; done?: boolean }
+  patch: { note?: string | null; done?: boolean },
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if ("note" in patch) update.note = patch.note?.trim() || null;
   if ("done" in patch) update.done = !!patch.done;
@@ -347,8 +360,8 @@ export async function updateEtAssignment(
 }
 
 /** Delete a planned assignment. */
-export async function deleteEtAssignment(assignmentId: string): Promise<void> {
-  const supabase = await getWriteClient();
+export async function deleteEtAssignment(assignmentId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("et_assignments").delete().eq("id", assignmentId);
   if (error) throw error;
 }
@@ -356,9 +369,10 @@ export async function deleteEtAssignment(assignmentId: string): Promise<void> {
 /** Re-number a person's queue to the given id order (position = index). */
 export async function reorderEtAssignments(
   personId: string,
-  orderedIds: string[]
+  orderedIds: string[],
+  client?: SupabaseClient
 ): Promise<void> {
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
   for (let i = 0; i < orderedIds.length; i++) {
     const { error } = await supabase
       .from("et_assignments")
@@ -387,7 +401,7 @@ export async function patchEtStages(
   patches: StagePatch[],
   client?: SupabaseClient
 ): Promise<void> {
-  const supabase = client ?? (await getWriteClient());
+  const supabase = await getWriteClient(client);
 
   for (const p of patches) {
     const patch: Record<string, unknown> = {};

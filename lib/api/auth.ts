@@ -10,7 +10,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * table, migration 010); the key itself is never logged or persisted.
  */
 
-export type ApiScope = "items:read" | "items:write" | "quran:read" | "quran:write";
+export type ApiScope =
+  | "items:read"
+  | "items:write"
+  | "items:delete"
+  | "quran:read"
+  | "quran:write"
+  | "quran:delete";
 
 export interface ApiKey {
   id: string;

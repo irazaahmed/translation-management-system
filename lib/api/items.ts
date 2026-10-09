@@ -212,8 +212,20 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
       holder: s.person,
       sent_date: s.sent_date,
       received_date: s.received_back_date,
+      not_applicable: s.not_applicable,
+      merged: s.merged,
     })),
     tracking,
+    returns: returns.map((r) => ({
+      id: r.id,
+      stage: r.stage,
+      stage_name: r.stage ? stageName(r.stage) : null,
+      note: r.note,
+      holder: r.person,
+      sent_date: r.sent_date,
+      received_date: r.received_back_date,
+      open: !!r.sent_date && !r.received_back_date,
+    })),
     created_at: item.created_at,
     updated_at: item.updated_at,
   };
@@ -249,13 +261,16 @@ export async function loadReturnsFresh(client: SupabaseClient, itemId: string): 
 
 // ---- PATCH body -> StagePatch[] ----
 
-type BuildResult = { patches: StagePatch[] } | { error: string; details?: unknown; status?: number };
+/** A stage edit from the API: a StagePatch plus the pipeline editor's N/A / Merged flags. */
+export type ApiStagePatch = StagePatch & { not_applicable?: boolean; merged?: boolean };
+
+type BuildResult = { patches: ApiStagePatch[] } | { error: string; details?: unknown; status?: number };
 
 /**
  * Resolve a holder name to the canonical workforce name (case-insensitive).
  * Pipeline holders must come from the workforce list, same as the UI dropdown.
  */
-function resolveHolder(
+export function resolveHolder(
   raw: unknown,
   people: string[]
 ): { ok: true; name: string | null } | { ok: false; error: string } {
@@ -272,8 +287,9 @@ function resolveHolder(
  * rules as the item page:
  *  - `advance_to` mirrors the "Move →" / "Start" button exactly: it must name
  *    the step computeAdvance() says comes next (or "DONE" for the last step).
- *  - `stages` mirrors the pipeline editor: per-stage field edits, only for
- *    stages that exist on this item, with holders from the workforce list.
+ *  - `stages` mirrors the pipeline editor: per-stage field edits (holder,
+ *    dates, N/A, Merged), only for stages that exist on this item, with
+ *    holders from the workforce list.
  */
 export function buildPipelinePatches(
   item: EtItemWithStages,
@@ -328,7 +344,7 @@ export function buildPipelinePatches(
     return { error: '"stages" must be a non-empty array (max 20).' };
   }
   const present = new Set(item.stages.map((s) => s.stage));
-  const patches: StagePatch[] = [];
+  const patches: ApiStagePatch[] = [];
   const problems: string[] = [];
   body.stages.forEach((raw, i) => {
     if (!raw || typeof raw !== "object") {
@@ -341,7 +357,7 @@ export function buildPipelinePatches(
       problems.push(`stages[${i}].code "${String(s.code)}" is not a stage of this item (${[...present].join(", ")}).`);
       return;
     }
-    const patch: StagePatch = { stage: code };
+    const patch: ApiStagePatch = { stage: code };
     if ("holder" in s) {
       const h = resolveHolder(s.holder, people);
       if (!h.ok) problems.push(`stages[${i}]: ${h.error}`);
@@ -357,8 +373,13 @@ export function buildPipelinePatches(
       else if (isIsoDate(v)) patch[target] = v;
       else problems.push(`stages[${i}].${field} must be YYYY-MM-DD or null.`);
     }
+    for (const flag of ["not_applicable", "merged"] as const) {
+      if (!(flag in s)) continue;
+      if (typeof s[flag] === "boolean") patch[flag] = s[flag] as boolean;
+      else problems.push(`stages[${i}].${flag} must be true or false.`);
+    }
     if (Object.keys(patch).length === 1) {
-      problems.push(`stages[${i}] has nothing to change (holder / sent_date / received_date).`);
+      problems.push(`stages[${i}] has nothing to change (holder / sent_date / received_date / not_applicable / merged).`);
       return;
     }
     patches.push(patch);

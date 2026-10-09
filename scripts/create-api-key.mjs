@@ -16,7 +16,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
-const VALID_SCOPES = ["items:read", "items:write", "quran:read", "quran:write"];
+const VALID_SCOPES = ["items:read", "items:write", "items:delete", "quran:read", "quran:write", "quran:delete"];
 
 const HELP = `Usage:
   node scripts/create-api-key.mjs --name <name> [--scopes "<scopes>"] [--created-by <who>]
@@ -27,10 +27,15 @@ const HELP = `Usage:
       Revoke every active key with that name.
 
 Scopes (space or comma separated; default "items:read"):
-  items:read   GET /api/v1/items, /items/{id}, /meta          (English Translation)
-  items:write  POST /api/v1/items, PATCH /api/v1/items/{id}/pipeline
-  quran:read   GET /api/v1/quran/*                            (Quranic Translation)
-  quran:write  PATCH/POST /api/v1/quran/languages, /quran/meetings`;
+  items:read    every GET under /api/v1 except /quran      (English Translation)
+  items:write   create / edit items, pipeline, final email, stop, returns,
+                workforce, planned assignments
+  items:delete  DELETE items, returns, workforce members, assignments
+  quran:read    every GET /api/v1/quran/*                  (Quranic Translation)
+  quran:write   create / edit languages, para progress, meetings, Quran workforce
+  quran:delete  DELETE languages, meetings, Quran workforce members
+
+Delete scopes are never needed for normal work; grant them only on purpose.`;
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);

@@ -11,7 +11,7 @@ import {
   revalidateQuran,
   writeAudit,
 } from "@/lib/api/quran";
-import { updateLanguage } from "@/lib/mutations";
+import { deleteLanguage, updateLanguage } from "@/lib/mutations";
 import { saveParaStage } from "@/lib/paraProgressMutations";
 import { getCachedParaRowsForLanguage } from "@/lib/paraProgressData";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -96,5 +96,35 @@ export async function PATCH(request: Request, { params }: Ctx) {
   } catch (err) {
     console.error("PATCH /api/v1/quran/languages/[id] failed:", err);
     return apiError(500, "Failed to update the language.");
+  }
+}
+
+/**
+ * DELETE /api/v1/quran/languages/:id — delete a language; its meetings and
+ * para progress go with it (scope quran:delete).
+ */
+export async function DELETE(request: Request, { params }: Ctx) {
+  const auth = await requireApiKey(request, "quran:delete");
+  if (auth.response) return auth.response;
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return apiError(400, "Language id must be a UUID.");
+  try {
+    const admin = createAdminClient();
+    const lang = await loadLanguage(admin, id);
+    if (!lang) return apiError(404, "Language not found.");
+
+    await deleteLanguage(id, admin);
+    revalidateQuran(id);
+    await writeAudit(admin, auth.key, {
+      languageId: id,
+      action: "quran.language.delete",
+      request: { language: lang.language, country: lang.country, project_id: lang.project_id },
+      note: new URL(request.url).searchParams.get("note")?.slice(0, 1000) ?? null,
+    });
+    return NextResponse.json({ ok: true, deleted: { id, language: lang.language, country: lang.country } });
+  } catch (err) {
+    console.error("DELETE /api/v1/quran/languages/[id] failed:", err);
+    return apiError(500, "Failed to delete the language.");
   }
 }

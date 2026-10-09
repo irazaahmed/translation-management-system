@@ -27,10 +27,11 @@ async function getWriteClient(client?: SupabaseClient) {
 // ---------------------------------------------------------------
 
 export async function createLanguage(
-  input: CreateLanguageInput
+  input: CreateLanguageInput,
+  client?: SupabaseClient
 ): Promise<Language | null> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     if (!input.project_id) {
       throw new Error("Project is required");
@@ -79,10 +80,11 @@ export async function createLanguage(
  */
 export async function setAssignedDay(
   languageId: string,
-  assignedDay: string | null
+  assignedDay: string | null,
+  client?: SupabaseClient
 ): Promise<void> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const { error } = await supabase
       .from("languages")
@@ -124,9 +126,9 @@ export async function updateLanguage(
   }
 }
 
-export async function deleteLanguage(languageId: string): Promise<void> {
+export async function deleteLanguage(languageId: string, client?: SupabaseClient): Promise<void> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const { error } = await supabase
       .from("languages")
@@ -206,9 +208,9 @@ export async function updateMeeting(
   }
 }
 
-export async function deleteMeeting(meetingId: string): Promise<void> {
+export async function deleteMeeting(meetingId: string, client?: SupabaseClient): Promise<void> {
   try {
-    const supabase = await getWriteClient();
+    const supabase = await getWriteClient(client);
 
     const { error } = await supabase.from("meetings").delete().eq("id", meetingId);
 

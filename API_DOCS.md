@@ -3,17 +3,63 @@
 A small, versioned JSON API for machine clients (e.g. the "Zaki" assistant), covering both
 workspaces:
 
-- **English Translation** work items: `/api/v1/items`, `/api/v1/meta` ([jump](#english-translation-api)).
-- **Quranic Translation** languages, para progress and meetings: `/api/v1/quran/*`
+- **English Translation**: work items, pipeline, final email, stop/resume, returns, workforce,
+  planned assignments ([jump](#english-translation-api)).
+- **Quranic Translation**: languages, para progress, meetings, schedule, workforce
   ([jump](#quranic-translation-api)).
 
-It is additive: the web UI is unchanged, and every rule comes from the same code the UI uses
-(`lib/et.ts`, `lib/etMutations.ts`, `lib/progress.ts`, `lib/schedule.ts`, `lib/mutations.ts`,
-`lib/paraProgressMutations.ts`).
+It is additive: the web UI is unchanged, and every write goes through the same function the UI
+uses (`lib/etMutations.ts`, `lib/mutations.ts`, `lib/paraProgressMutations.ts`), with the same
+rules (`lib/et.ts`, `lib/progress.ts`, `lib/schedule.ts`).
 
 - **Base URL:** `https://tms-dawateislami.vercel.app/api/v1`
 - **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`.
 - **CORS:** none — the API is meant for server-to-server calls, not browsers.
+
+## All endpoints
+
+Every option in the web UI is available, except login/logout and user management (creating
+login accounts or changing roles). Those stay in the admin UI on purpose.
+
+| UI option | Endpoint | Scope |
+|-----------|----------|-------|
+| **English** | | |
+| Stages, types, holders | `GET /meta` | items:read |
+| Items list / search | `GET /items` | items:read |
+| Item page | `GET /items/{id}` | items:read |
+| New item | `POST /items` | items:write |
+| Edit item (title, type, words, dates, priority, notes, sender) | `PATCH /items/{id}` | items:write |
+| Final email / 2nd final email (wsb) | `PATCH /items/{id}` → `final_email_date`, `final_email_date_2` | items:write |
+| Stop / resume project | `PATCH /items/{id}` → `stopped` | items:write |
+| Delete item | `DELETE /items/{id}` | **items:delete** |
+| "Move →" / "Start" | `PATCH /items/{id}/pipeline` → `advance_to` | items:write |
+| Pipeline editor (holders, dates, N/A, Merged) | `PATCH /items/{id}/pipeline` → `stages` | items:write |
+| Returns of an item | `GET /items/{id}/returns` | items:read |
+| All returns (open / completed) | `GET /returns` | items:read |
+| Add return | `POST /items/{id}/returns` | items:write |
+| Complete / edit return | `PATCH /items/{id}/returns/{returnId}` | items:write |
+| Delete return | `DELETE /items/{id}/returns/{returnId}` | **items:delete** |
+| Workforce list | `GET /people` | items:read |
+| Add / edit workforce member (rename cascades) | `POST /people`, `PATCH /people/{id}` | items:write |
+| Remove workforce member | `DELETE /people/{id}` | **items:delete** |
+| Planned work (managing board) | `GET /assignments` | items:read |
+| Line up / edit / mark done | `POST /assignments`, `PATCH /assignments/{id}` | items:write |
+| Reorder a person's queue | `PUT /people/{id}/assignments/order` | items:write |
+| Remove planned work | `DELETE /assignments/{id}` | **items:delete** |
+| **Quranic** | | |
+| Stages, pipelines, workforce, projects | `GET /quran/meta` | quran:read |
+| Languages list / language page | `GET /quran/languages`, `GET /quran/languages/{id}` | quran:read |
+| Add language | `POST /quran/languages` | quran:write |
+| Edit language (name, country, responsible, priority, status, weekday) + para progress | `PATCH /quran/languages/{id}` | quran:write |
+| Delete language | `DELETE /quran/languages/{id}` | **quran:delete** |
+| Meetings list / one meeting | `GET /quran/meetings`, `GET /quran/meetings/{id}` | quran:read |
+| Add (or quick-add) / edit meeting | `POST /quran/meetings`, `PATCH /quran/meetings/{id}` | quran:write |
+| Delete meeting | `DELETE /quran/meetings/{id}` | **quran:delete** |
+| Weekly schedule | `GET /quran/schedule` | quran:read |
+| Quran workforce | `GET /quran/people`, `POST /quran/people`, `PATCH /quran/people/{id}` | quran:read / quran:write |
+| Remove Quran workforce member | `DELETE /quran/people/{id}` | **quran:delete** |
+
+Every `DELETE` accepts an optional `?note=...` for the audit log.
 
 ---
 
@@ -32,15 +78,20 @@ Authorization: Bearer $TMS_API_KEY
 
   | Scope | Allows |
   |-------|--------|
-  | `items:read` | English `GET`s (`/items`, `/items/{id}`, `/meta`) |
-  | `items:write` | `POST /items` (create), `PATCH /items/{id}/pipeline` |
+  | `items:read` | Every English `GET` |
+  | `items:write` | Every English `POST` / `PATCH` / `PUT` |
+  | `items:delete` | English `DELETE`s (items, returns, workforce, assignments) |
   | `quran:read` | Every `GET /quran/*` |
-  | `quran:write` | `PATCH /quran/languages/{id}`, `POST /quran/meetings`, `PATCH /quran/meetings/{id}` |
+  | `quran:write` | Every Quranic `POST` / `PATCH` |
+  | `quran:delete` | Quranic `DELETE`s (languages, meetings, workforce) |
+
+  A delete can't be undone, so the delete scopes are separate. Grant them only on purpose.
 - **Rate limit:** about 100 requests per minute per key. Over the limit → `429` with a
   `Retry-After` header (seconds). The counter is in memory per server instance, so treat it
   as a soft limit.
-- Every API write is recorded in `public.api_audit_log` (key, request, note). `item_id` holds the
-  English item id, or the language id for Quranic writes.
+- Every API write (and delete) is recorded in `public.api_audit_log` with the key, the request
+  and your note. `item_id` holds the affected record: the English item, the Quranic language, or
+  the Quran workforce member. It's empty for English workforce changes and queue reorders.
 
 ### Creating / revoking keys
 
@@ -305,7 +356,10 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/pipe
 ```
 
 - Each entry needs a `code` that exists on this item, plus at least one of `holder`,
-  `sent_date` or `received_date`. Only the fields you send are changed; `null` clears a field.
+  `sent_date`, `received_date`, `not_applicable` or `merged`. Only the fields you send are
+  changed; `null` clears a field.
+- `not_applicable: true` / `merged: true` skip a stage, like the pipeline editor's N/A and Merged
+  checkboxes. Skipped stages don't count toward progress. Send `false` to undo.
 - Up to 20 entries. If any entry is invalid, nothing is written and a `400` lists every problem.
 
 ### Response (both forms)
@@ -323,7 +377,100 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/pipe
 }
 ```
 
-Stopped items return `409`. Resume them in TMS first.
+Stopped items return `409`. Resume them first (`PATCH /items/{id}` with `"stopped": false`).
+
+## `PATCH /api/v1/items/{id}`
+
+Scope `items:write`. Edits the item, sets the final email, and stops or resumes it, all in one
+request. Only the fields you send change; `null` clears a field.
+
+| Field | Values | Same as in the UI |
+|-------|--------|-------------------|
+| `title`, `type`, `received_date`, `delivery_date`, `word_count`, `priority`, `further_process`, `sender_name`, `sender_email` | as in [`POST /items`](#post-apiv1items) | Edit item form. A `null` `delivery_date` is read from a `(dd-mm-yy)` title |
+| `final_email_date` | `YYYY-MM-DD` or `null` | Final email date: setting it completes the item, clearing it reopens it |
+| `final_email_date_2` | `YYYY-MM-DD` or `null` (**wsb only**) | 2nd final email (to the Islamic Sisters), which completes a wsb item |
+| `stopped` | `true` / `false` | Stop / Resume project |
+| `note` | audit note | |
+
+- Final email dates are saved through `saveEtStages()`, the same as the pipeline editor, so the
+  item's stored status is recalculated.
+- Changing `type` doesn't add or remove stages, same as the edit form.
+
+```bash
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "final_email_date": "2026-10-09", "note": "Final email sent to the client" }'
+```
+
+Returns `{ "ok": true, "note": …, "currently_at": "Completed — final email sent.", "item": { … } }`.
+
+## `DELETE /api/v1/items/{id}`
+
+Scope **`items:delete`**. Deletes the item and its stages. This can't be undone. Optional
+`?note=` for the audit log. Returns `{ "ok": true, "deleted": { "id", "title" } }`.
+
+## Returns ("sent back to complete a missing part")
+
+Sometimes an item moves on and only later someone notices a missing part, so it's handed back.
+The item page logs these as **returns**. Each return looks like this:
+
+```json
+{ "id": "uuid", "stage": "ED", "stage_name": "Editing", "note": "para 3 missing", "holder": "…",
+  "sent_date": "2026-10-08", "received_date": null, "open": true }
+```
+
+`GET /items/{id}` includes a `returns` array.
+
+| Endpoint | Scope | What it does |
+|----------|-------|--------------|
+| `GET /items/{id}/returns` | items:read | The item's returns, newest first |
+| `GET /returns` | items:read | All returns. Filters: `open=true\|false`, `holder`, `item_id`, `page`, `limit`. Open returns include `days_out` |
+| `POST /items/{id}/returns` | items:write | Add a return. Body: `stage` (one of the item's stages, optional), `note`, `holder` (workforce name), `sent_date`, `received_date`. It needs a `note` or a `holder`, same as the UI |
+| `PATCH /items/{id}/returns/{returnId}` | items:write | **Complete** it (`"received_date": "YYYY-MM-DD"`) or **edit** any field. Only the fields you send change; `null` clears a field (e.g. `"received_date": null` reopens it) |
+| `DELETE /items/{id}/returns/{returnId}` | **items:delete** | Remove the return |
+
+In return bodies, `note` is the return's own text ("what's missing"). Use **`api_note`** for the
+audit note.
+
+```bash
+# log a return
+curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/returns" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "stage": "ED", "note": "para 3 missing", "holder": "Rafique Attari", "sent_date": "2026-10-09" }'
+
+# mark it completed
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/returns/$RETURN_ID" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "received_date": "2026-10-10" }'
+```
+
+## Workforce (`/people`)
+
+The workforce is the single list of holder names that every stage and return uses.
+
+| Endpoint | Scope | What it does |
+|----------|-------|--------------|
+| `GET /people` | items:read | Everyone: `{id, name, skills, email, working_hours, active, notes, items_held}`. Filter: `active=true\|false` |
+| `POST /people` | items:write | Add a member. Body: `name` (required, unique, case-insensitive), `skills`, `email`, `working_hours`, `active` (default `true`) |
+| `PATCH /people/{id}` | items:write | Edit. **Renaming updates every stage holder and return that used the old name**, same as the Workforce page. The response includes `renamed: {from, to}` |
+| `DELETE /people/{id}` | **items:delete** | Remove the member. Their past work history keeps the name |
+
+A name that already exists returns `409`.
+
+## Planned work (`/assignments`)
+
+This is the Workforce page's managing board: which items each person is lined up to do, in
+queue order.
+
+| Endpoint | Scope | What it does |
+|----------|-------|--------------|
+| `GET /assignments` | items:read | `{id, person_id, person, item_id, item_title, item_type, note, position, done}`. Filters: `person_id`, `item_id`, `done=true\|false` |
+| `POST /assignments` | items:write | Line up an item for a person: `{ "person_id", "item_id", "note"? }`. It's added to the end of their queue |
+| `PATCH /assignments/{id}` | items:write | `{ "note"?, "done"? }` |
+| `PUT /people/{id}/assignments/order` | items:write | Reorder: `{ "ordered_ids": [...] }`, listing every one of that person's assignment ids in the new order |
+| `DELETE /assignments/{id}` | **items:delete** | Remove it |
+
+`api_note` is the audit note on `POST` and `PATCH /assignments`.
 
 ---
 
@@ -474,6 +621,7 @@ you send change. Unknown fields → `400`. If **anything** is invalid, nothing i
 
 | Field | Values |
 |-------|--------|
+| `language` | new name (≤ 100). Adding or removing "Braille" in the name switches the pipeline. Send a rename on its own, not together with `para_progress` |
 | `responsible_person` | text (≤ 200) or `null` |
 | `priority` | `low` \| `medium` \| `high` \| `null` |
 | `work_status` | `not_started` \| `in_progress` \| `completed` |
@@ -592,6 +740,49 @@ curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/quran/meetings" \
 Scope `quran:write`. Takes the same fields as `POST`, minus `language_id`, which can't be
 changed. Only the fields you send change; `null` clears a field. `meeting_date` can't be
 cleared. The response has the same shape as `POST` (with `200`).
+
+## `DELETE /quran/meetings/{id}`
+
+Scope **`quran:delete`**. Deletes the meeting. The language's `last_meeting_at` falls back to its
+latest remaining meeting. Returns `{ ok, deleted: {id}, language: {…schedule info…} }`.
+
+## `POST /quran/languages`
+
+Scope `quran:write`. Adds a language through `createLanguage()`, the same function as the "Add
+language" form.
+
+| Field | Required | Values |
+|-------|----------|--------|
+| `language` | yes | name (≤ 100). Include "Braille" for a Braille language |
+| `country` | yes | text |
+| `project` | yes | project name (case-insensitive) or id, from `/quran/meta` → `projects` |
+| `responsible_person`, `priority`, `work_status`, `assigned_day` | no | as in `PATCH`; `work_status` defaults to `not_started` |
+| `note` | no | audit note |
+
+If the same language + country already exists in that project, the response is `409`.
+Otherwise it returns `201` with `{ ok, note, language: {…same shape as GET /quran/languages/{id}…} }`.
+
+```bash
+curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/quran/languages" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "language": "Swahili", "country": "Kenya", "project": "…", "work_status": "in_progress", "assigned_day": "Thursday" }'
+```
+
+## `DELETE /quran/languages/{id}`
+
+Scope **`quran:delete`**. Deletes the language **together with its meetings and para
+progress**. This can't be undone.
+
+## Quran workforce (`/quran/people`)
+
+| Endpoint | Scope | What it does |
+|----------|-------|--------------|
+| `GET /quran/people` | quran:read | `{id, name, active, notes, paras_in_progress}`. Filter: `active=true\|false` |
+| `POST /quran/people` | quran:write | `{ "name" (required, unique), "active"?, "notes"? }` |
+| `PATCH /quran/people/{id}` | quran:write | Any of `name`, `active`, `notes` |
+| `DELETE /quran/people/{id}` | **quran:delete** | Remove the member. Their para history stays, unassigned |
+
+Here `notes` is the person's notes, and `note` is the audit note.
 
 ## `GET /quran/schedule`
 

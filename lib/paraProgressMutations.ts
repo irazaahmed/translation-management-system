@@ -24,16 +24,16 @@ export interface QuranPersonInput {
   notes: string | null;
 }
 
-export async function addQuranPerson(input: QuranPersonInput): Promise<void> {
-  const supabase = await getWriteClient();
+export async function addQuranPerson(input: QuranPersonInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("quran_people").insert([
     { name: input.name.trim(), active: input.active, notes: input.notes?.trim() || null },
   ]);
   if (error) throw error;
 }
 
-export async function updateQuranPerson(personId: string, input: QuranPersonInput): Promise<void> {
-  const supabase = await getWriteClient();
+export async function updateQuranPerson(personId: string, input: QuranPersonInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase
     .from("quran_people")
     .update({ name: input.name.trim(), active: input.active, notes: input.notes?.trim() || null })
@@ -42,8 +42,8 @@ export async function updateQuranPerson(personId: string, input: QuranPersonInpu
 }
 
 /** Remove a workforce member (does not touch their past para history — person_id just goes null). */
-export async function deleteQuranPerson(personId: string): Promise<void> {
-  const supabase = await getWriteClient();
+export async function deleteQuranPerson(personId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
   const { error } = await supabase.from("quran_people").delete().eq("id", personId);
   if (error) throw error;
 }
@@ -62,10 +62,11 @@ export async function setStageParaCountFinished(
   languageId: string,
   stage: StageKey,
   count: number,
-  finishedAt: string
+  finishedAt: string,
+  client?: SupabaseClient
 ): Promise<void> {
   if (count <= 0) return;
-  const supabase = await getWriteClient();
+  const supabase = await getWriteClient(client);
   const { data: existing, error: selErr } = await supabase
     .from("para_progress")
     .select("para_number, started_at, person_id, finished_at")

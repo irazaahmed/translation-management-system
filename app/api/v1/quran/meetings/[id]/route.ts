@@ -10,7 +10,7 @@ import {
   syncLastMeetingAt,
   writeAudit,
 } from "@/lib/api/quran";
-import { updateMeeting } from "@/lib/mutations";
+import { deleteMeeting, updateMeeting } from "@/lib/mutations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { supabase } from "@/lib/supabaseClient";
 import type { Meeting } from "@/lib/supabase";
@@ -84,5 +84,40 @@ export async function PATCH(request: Request, { params }: Ctx) {
   } catch (err) {
     console.error("PATCH /api/v1/quran/meetings/[id] failed:", err);
     return apiError(500, "Failed to update the meeting.");
+  }
+}
+
+/** DELETE /api/v1/quran/meetings/:id — delete a meeting record (scope quran:delete). */
+export async function DELETE(request: Request, { params }: Ctx) {
+  const auth = await requireApiKey(request, "quran:delete");
+  if (auth.response) return auth.response;
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return apiError(400, "Meeting id must be a UUID.");
+  try {
+    const admin = createAdminClient();
+    const { data: existing, error } = await admin.from("meetings").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (!existing) return apiError(404, "Meeting not found.");
+    const languageId = existing.language_id as string;
+
+    await deleteMeeting(id, admin);
+    await syncLastMeetingAt(admin, languageId);
+    revalidateQuran(languageId);
+    await writeAudit(admin, auth.key, {
+      languageId,
+      action: "quran.meeting.delete",
+      request: { deleted: meetingOut(existing as Meeting) },
+      note: new URL(request.url).searchParams.get("note")?.slice(0, 1000) ?? null,
+    });
+    const lang = (await loadLanguage(admin, languageId))!;
+    return NextResponse.json({
+      ok: true,
+      deleted: { id },
+      language: { id: lang.id, language: lang.language, ...scheduleInfo(lang, lang.last_meeting_at) },
+    });
+  } catch (err) {
+    console.error("DELETE /api/v1/quran/meetings/[id] failed:", err);
+    return apiError(500, "Failed to delete the meeting.");
   }
 }

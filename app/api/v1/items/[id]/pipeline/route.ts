@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { apiError, requireApiKey } from "@/lib/api/auth";
 import { UUID_RE, buildPipelinePatches, itemDetail, loadItemFresh, loadReturnsFresh } from "@/lib/api/items";
-import { patchEtStages } from "@/lib/etMutations";
+import { patchEtStages, saveEtStages, type StageUpsert } from "@/lib/etMutations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ET_CACHE_TAG } from "@/lib/et";
 
@@ -47,7 +47,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const built = buildPipelinePatches(item, body, people);
     if ("error" in built) return apiError(built.status ?? 400, built.error, built.details);
 
-    await patchEtStages(id, built.patches, admin);
+    if (built.patches.some((p) => "not_applicable" in p || "merged" in p)) {
+      // N/A / Merged flags only exist in the full pipeline editor's save
+      // (saveEtStages): send every stage, with this request's edits applied,
+      // and keep the item's final email dates so its status stays correct.
+      const byStage = new Map(built.patches.map((p) => [p.stage, p]));
+      const rows: StageUpsert[] = item.stages.map((s) => {
+        const p = byStage.get(s.stage);
+        return {
+          stage: s.stage,
+          person: p && "person" in p ? p.person ?? null : s.person,
+          sent_date: p && "sent_date" in p ? p.sent_date ?? null : s.sent_date,
+          received_back_date: p && "received_back_date" in p ? p.received_back_date ?? null : s.received_back_date,
+          not_applicable: p?.not_applicable ?? s.not_applicable,
+          merged: p?.merged ?? s.merged,
+        };
+      });
+      await saveEtStages(id, rows, item.final_email_date, item.final_email_date_2, admin);
+    } else {
+      await patchEtStages(id, built.patches, admin);
+    }
 
     // Same cache drop as the UI's server actions (revalidateEt in etActions.ts).
     revalidateTag(ET_CACHE_TAG, { expire: 0 });

@@ -18,7 +18,7 @@ import {
 } from "@/lib/progress";
 import { WEEKDAYS, computeScheduleStatus, nextOccurrenceOf, type Weekday } from "@/lib/schedule";
 import type { ParaStageRowInput } from "@/lib/paraProgressMutations";
-import type { Language, Meeting, UpdateLanguageInput } from "@/lib/supabase";
+import type { CreateLanguageInput, Language, Meeting, UpdateLanguageInput } from "@/lib/supabase";
 import { isIsoDate, todayPk } from "./common";
 
 /**
@@ -296,7 +296,8 @@ export function revalidateQuran(languageId?: string) {
 export async function writeAudit(
   client: SupabaseClient,
   key: { id: string; name: string },
-  entry: { languageId: string; action: string; request: unknown; note: string | null }
+  /** languageId = the affected record (a language, or a workforce member for quran.person.* actions). */
+  entry: { languageId: string | null; action: string; request: unknown; note: string | null }
 ) {
   const { error } = await client.from("api_audit_log").insert({
     key_id: key.id,
@@ -314,6 +315,7 @@ export async function writeAudit(
 // ============================================================
 
 const LANGUAGE_PATCH_KEYS = new Set([
+  "language",
   "responsible_person",
   "priority",
   "work_status",
@@ -359,6 +361,14 @@ export function planLanguagePatch(
 
   // ---- meta ----
   const meta: UpdateLanguageInput = {};
+  if ("language" in body) {
+    const v = body.language;
+    if (typeof v === "string" && v.trim() && v.trim().length <= 100) meta.language = v.trim();
+    else problems.push("language must be a non-empty string (max 100).");
+    // A rename can switch the pipeline (e.g. adding "Braille"), so keep it
+    // separate from para edits, which are checked against the current pipeline.
+    if ("para_progress" in body) problems.push("Rename the language in its own request, not together with para_progress.");
+  }
   if ("responsible_person" in body) {
     const v = body.responsible_person;
     if (v === null || v === "") meta.responsible_person = null;
@@ -583,4 +593,104 @@ export function parseMeetingFields(
   if (problems.length) return { error: "Invalid request.", details: problems };
   if (!creating && Object.keys(fields).length === 0) return { error: "Nothing to change." };
   return { fields };
+}
+
+// ============================================================
+// POST /quran/languages — same rules as the "Add language" form
+// ============================================================
+
+const NEW_LANGUAGE_KEYS = new Set([
+  "language",
+  "country",
+  "project",
+  "responsible_person",
+  "priority",
+  "work_status",
+  "assigned_day",
+  "note",
+]);
+
+/**
+ * Validate a new language: language, country and project are required
+ * (project by id or name, as listed in GET /quran/meta); the rest optional.
+ * createLanguage() itself rejects a duplicate language+country in a project.
+ */
+export function parseNewLanguage(
+  body: Record<string, unknown>,
+  projects: { id: string; name: string }[]
+): { input: CreateLanguageInput } | { error: string; details?: unknown } {
+  const problems: string[] = [];
+  const unknown = Object.keys(body).filter((k) => !NEW_LANGUAGE_KEYS.has(k));
+  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  const str = (k: string, max: number) => (typeof body[k] === "string" && (body[k] as string).trim() && (body[k] as string).trim().length <= max ? (body[k] as string).trim() : null);
+
+  const language = str("language", 100);
+  if (!language) problems.push("language is required (max 100).");
+  const country = str("country", 100);
+  if (!country) problems.push("country is required (max 100).");
+  const projRaw = typeof body.project === "string" ? body.project.trim().toLowerCase() : "";
+  const project = projects.find((p) => p.id === projRaw || p.name.toLowerCase() === projRaw);
+  if (!project) problems.push(`project is required: one of ${projects.map((p) => `"${p.name}"`).join(", ")} (name or id).`);
+
+  // Reuse the PATCH validators for the optional fields.
+  const optional = Object.fromEntries(
+    ["responsible_person", "priority", "work_status", "assigned_day"].filter((k) => k in body).map((k) => [k, body[k]])
+  );
+  const planned = planLanguagePatch(
+    { language: language ?? "" } as Language,
+    [],
+    optional,
+    new Set()
+  );
+  let meta: UpdateLanguageInput = {};
+  if ("error" in planned) {
+    if (planned.error !== "Nothing to change. Send meta fields and/or para_progress.") {
+      problems.push(...((planned.details as string[] | undefined) ?? [planned.error]));
+    }
+  } else meta = planned.plan.meta ?? {};
+
+  if (problems.length) return { error: "Invalid request.", details: problems };
+  return {
+    input: {
+      language: language!,
+      country: country!,
+      project_id: project!.id,
+      responsible_person: meta.responsible_person ?? null,
+      priority: meta.priority ?? null,
+      work_status: meta.work_status ?? "not_started",
+      assigned_day: meta.assigned_day ?? null,
+    },
+  };
+}
+
+// ============================================================
+// Quran workforce (quran_people)
+// ============================================================
+
+export function parseQuranPerson(
+  body: Record<string, unknown>,
+  current: { name: string; active: boolean; notes: string | null } | null
+): { input: { name: string; active: boolean; notes: string | null } } | { error: string; details?: unknown } {
+  const problems: string[] = [];
+  const unknown = Object.keys(body).filter((k) => !["name", "active", "notes", "note"].includes(k));
+  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}. (Use "notes" for the person's notes, "note" for the audit note.)`);
+  const out = current ? { ...current } : { name: "", active: true, notes: null as string | null };
+  if ("name" in body || !current) {
+    const n = typeof body.name === "string" ? body.name.trim() : "";
+    if (!n || n.length > 120) problems.push("name is required (max 120).");
+    else out.name = n;
+  }
+  if ("active" in body) {
+    if (typeof body.active === "boolean") out.active = body.active;
+    else problems.push("active must be true or false.");
+  }
+  if ("notes" in body) {
+    const v = body.notes;
+    if (v === null || v === "") out.notes = null;
+    else if (typeof v === "string" && v.length <= 1000) out.notes = v.trim();
+    else problems.push("notes must be a string (max 1000) or null.");
+  }
+  if (current && Object.keys(body).filter((k) => k !== "note").length === 0) problems.push("Nothing to change.");
+  if (problems.length) return { error: "Invalid request.", details: problems };
+  return { input: out };
 }
