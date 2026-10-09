@@ -77,3 +77,20 @@ node scripts/create-api-key.mjs --name zaki-assistant --scopes "items:read items
 To revoke it: `node scripts/create-api-key.mjs --revoke zaki-assistant`
 
 API key ka plaintext sirf terminal me ek baar dikhaya gaya tha — ye kahin save nahi hai. Ahmed ye key copy karke Zaki ke secure vault me save karega. Key ko chat ya kisi file me paste nahi karna.
+
+## Update 2026-10-09 — every UI option is now in the API (commit `3f11657`)
+
+`API_DOCS.md` → **All endpoints** maps each UI option to its endpoint. New since the first release:
+
+- **English:** `PATCH /items/{id}` (edit form, final email / 2nd final email for wsb, stop / resume),
+  `DELETE /items/{id}`, N/A / Merged in the pipeline `stages` form, returns
+  (`GET/POST /items/{id}/returns`, `PATCH`: complete or edit, `DELETE`, plus `GET /returns`),
+  workforce (`/people`, where a rename cascades), planned work (`/assignments`, plus reorder).
+- **Quranic:** `POST /quran/languages`, language rename, `DELETE /quran/languages/{id}`,
+  `DELETE /quran/meetings/{id}`, Quran workforce (`/quran/people`).
+- **New scopes `items:delete` / `quran:delete`.** Every `DELETE` needs one of them. They are
+  separate from the write scopes and are **not** given to `zaki-assistant` automatically.
+- **Not exposed:** login/logout and user management (creating accounts and changing roles).
+
+Production tests (2026-10-09): **48/48** passed for the new endpoints, and the earlier suites
+still pass (English 30/30, Quranic 41/41). Only dummy records were used and all were deleted.
