@@ -47,8 +47,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const built = buildPipelinePatches(item, body, people);
     if ("error" in built) return apiError(built.status ?? 400, built.error, built.details);
 
-    if (built.patches.some((p) => "not_applicable" in p || "merged" in p)) {
-      // N/A / Merged flags only exist in the full pipeline editor's save
+    if (built.patches.some((p) => "not_applicable" in p || "merged" in p || "with_tr" in p)) {
+      // N/A / Merged / with-TR flags only exist in the full pipeline editor's save
       // (saveEtStages): send every stage, with this request's edits applied,
       // and keep the item's final email dates so its status stays correct.
       const byStage = new Map(built.patches.map((p) => [p.stage, p]));
@@ -61,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           received_back_date: p && "received_back_date" in p ? p.received_back_date ?? null : s.received_back_date,
           not_applicable: p?.not_applicable ?? s.not_applicable,
           merged: p?.merged ?? s.merged,
+          with_tr: p?.with_tr ?? s.with_tr,
         };
       });
       await saveEtStages(id, rows, item.final_email_date, item.final_email_date_2, admin);

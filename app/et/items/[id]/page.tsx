@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedEtItem, getCachedEtPeople, getCachedEtReturns } from "@/lib/etData";
-import { computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isWsbType, returnBadgeLabel, returnBadgeDetail, stageName, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
+import { computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isTrEdCombined, isWsbType, itemStageName, returnBadgeLabel, returnBadgeDetail, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
 import EtQuickAdvance from "./EtQuickAdvance";
@@ -66,6 +66,15 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
 
   // Quick-advance data: which stage to act on next, straight from the summary.
   const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date, item.final_email_date_2);
+
+  // The editor copies the stages into local state once, so remount it whenever
+  // the saved pipeline changes (e.g. after Quick Advance) — otherwise it keeps
+  // showing, and could save back, the stale values.
+  const editorKey = JSON.stringify([
+    item.final_email_date,
+    item.final_email_date_2,
+    ...item.stages.map((s) => [s.stage, s.person, s.sent_date, s.received_back_date, s.not_applicable, s.merged, s.with_tr]),
+  ]);
 
   // Movement timeline: stages that have actually been touched (assigned/sent),
   // in pipeline order — who had it, when it was sent and came back, how long.
@@ -218,7 +227,7 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
 
       {/* Pipeline (editable for staff, read-only for viewers) */}
       <h2 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">Pipeline</h2>
-      <EtPipelineEditor itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} backHref={backHref} />
+      <EtPipelineEditor key={editorKey} itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} backHref={backHref} />
 
       {/* Movement timeline — who had it, when sent, when returned, how long */}
       <h2 className="mt-6 mb-3 text-base font-semibold text-gray-900 dark:text-white">Tracking — who had it &amp; when</h2>
@@ -240,7 +249,7 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {s.stage} · {stageName(s.stage)}
+                      {s.stage} · {itemStageName(s.stage, isTrEdCombined(item.stages))}
                       <span className="ml-2 font-normal text-gray-600 dark:text-gray-400">{s.person || "—"}</span>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">

@@ -6,6 +6,8 @@ import {
   effectiveWordCount,
   isQuranType,
   isStageSkipped,
+  isTrEdCombined,
+  itemStageName,
   itemCategory,
   reminderInfo,
   stageName,
@@ -61,6 +63,7 @@ export default async function EtReportsPage() {
       const cat = itemCategory(item.type);
       const typeName = typeLabel(item.type);
       const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
+      const trEd = isTrEdCombined(item.stages);
 
       // One activity row per touched (non-skipped) stage — who had it & when.
       for (const s of item.stages) {
@@ -72,7 +75,7 @@ export default async function EtReportsPage() {
           type: typeName,
           category: CATEGORY_LABELS[cat],
           stage: s.stage,
-          stageName: stageName(s.stage),
+          stageName: itemStageName(s.stage, trEd),
           person: s.person ?? "",
           sent: s.sent_date,
           received: s.received_back_date,
@@ -90,11 +93,13 @@ export default async function EtReportsPage() {
           category: CATEGORY_LABELS[cat],
           seq: s.seq,
           stage: s.stage,
-          stageName: stageName(s.stage),
+          stageName: itemStageName(s.stage, trEd),
           person: s.person ?? "",
           sent: s.sent_date,
           received: s.received_back_date,
-          status: s.not_applicable
+          status: s.with_tr
+            ? "With TR"
+            : s.not_applicable
             ? "N/A"
             : s.merged
             ? "Merged"

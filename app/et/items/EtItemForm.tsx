@@ -201,6 +201,21 @@ export default function EtItemForm({ item }: Props) {
               <label htmlFor="further_process" className={labelCls}>Notes / Further process</label>
               <textarea id="further_process" name="further_process" rows={3} defaultValue={item?.further_process ?? ""} className={inputCls} placeholder="Any special instructions or history…" />
             </div>
+
+            {/* Translation mode — AI by default, so Editing is part of TR */}
+            {!isEdit && (
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" name="manual_translation" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                  <span>
+                    Manual translation (separate Editing step)
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      Leave unchecked for AI translation — Editing (ED) is then done together with Translation (TR) as one step.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
 
           {!isEdit && (

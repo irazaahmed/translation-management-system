@@ -9,8 +9,10 @@ import {
   deriveStatus,
   effectiveWordCount,
   isQuranType,
+  isTrEdCombined,
   isWsbType,
   itemCategory,
+  itemStageName,
   parseTitleDate,
   stageName,
   TYPE_LABELS,
@@ -62,7 +64,7 @@ export function isStageCode(code: unknown): code is StageCode {
 // ---- Output shapes ----
 
 function stepRef(current: CurrentStep) {
-  return current.stage ? { code: current.stage, name: stageName(current.stage) } : null;
+  return current.stage ? { code: current.stage, name: current.label } : null;
 }
 
 /**
@@ -145,6 +147,7 @@ export function listItem(row: EtItem & {
 function stageState(s: EtStage): string {
   if (s.not_applicable) return "not_applicable";
   if (s.merged) return "merged";
+  if (s.with_tr) return "with_tr";
   if (s.received_back_date) return "done";
   if (s.sent_date) return "in_progress";
   return "pending";
@@ -155,6 +158,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
   const stages = [...item.stages].sort((a, b) => a.seq - b.seq);
   const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
   const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
+  const trEd = isTrEdCombined(stages);
 
   const tracking = [
     ...stages
@@ -162,7 +166,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
       .map((s) => ({
         kind: "stage" as const,
         stage: s.stage,
-        stage_name: stageName(s.stage),
+        stage_name: itemStageName(s.stage, trEd),
         holder: s.person,
         from: s.sent_date,
         to: s.received_back_date,
@@ -197,6 +201,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
     final_email_date_2: isWsbType(item.type) ? item.final_email_date_2 : undefined,
     sender: { name: item.sender_name, email: item.sender_email },
     further_process: item.further_process,
+    translation_mode: trEd ? "ai" : "manual",
     current_step: stepRef(current),
     currently_at: currentlyAtText(item, current),
     holder: current.holder,
@@ -206,7 +211,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
     next_action: nextAction(advance),
     pipeline: stages.map((s) => ({
       code: s.stage,
-      name: stageName(s.stage),
+      name: itemStageName(s.stage, trEd),
       seq: s.seq,
       state: stageState(s),
       holder: s.person,
@@ -214,6 +219,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
       received_date: s.received_back_date,
       not_applicable: s.not_applicable,
       merged: s.merged,
+      with_tr: s.with_tr,
     })),
     tracking,
     returns: returns.map((r) => ({
@@ -262,7 +268,7 @@ export async function loadReturnsFresh(client: SupabaseClient, itemId: string): 
 // ---- PATCH body -> StagePatch[] ----
 
 /** A stage edit from the API: a StagePatch plus the pipeline editor's N/A / Merged flags. */
-export type ApiStagePatch = StagePatch & { not_applicable?: boolean; merged?: boolean };
+export type ApiStagePatch = StagePatch & { not_applicable?: boolean; merged?: boolean; with_tr?: boolean };
 
 type BuildResult = { patches: ApiStagePatch[] } | { error: string; details?: unknown; status?: number };
 
@@ -378,8 +384,13 @@ export function buildPipelinePatches(
       if (typeof s[flag] === "boolean") patch[flag] = s[flag] as boolean;
       else problems.push(`stages[${i}].${flag} must be true or false.`);
     }
+    if ("with_tr" in s) {
+      if (code !== "ED") problems.push(`stages[${i}].with_tr only applies to ED.`);
+      else if (typeof s.with_tr === "boolean") patch.with_tr = s.with_tr;
+      else problems.push(`stages[${i}].with_tr must be true or false.`);
+    }
     if (Object.keys(patch).length === 1) {
-      problems.push(`stages[${i}] has nothing to change (holder / sent_date / received_date / not_applicable / merged).`);
+      problems.push(`stages[${i}] has nothing to change (holder / sent_date / received_date / not_applicable / merged / with_tr).`);
       return;
     }
     patches.push(patch);
@@ -401,6 +412,7 @@ const CREATE_KEYS = new Set([
   "further_process",
   "sender_name",
   "sender_email",
+  "translation_mode",
   "allow_duplicate",
   "note",
 ]);
@@ -464,6 +476,10 @@ export function parseCreateItem(
   const sender_email = text("sender_email", 200);
   if (sender_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender_email)) problems.push("sender_email is not a valid email.");
 
+  // AI translation (default) combines Editing into TR; manual keeps ED separate.
+  const mode = body.translation_mode ?? "ai";
+  if (mode !== "ai" && mode !== "manual") problems.push('translation_mode must be "ai" or "manual".');
+
   if (problems.length) return { error: "Invalid request.", details: problems };
   return {
     input: {
@@ -478,6 +494,7 @@ export function parseCreateItem(
       further_process,
       sender_name,
       sender_email,
+      manual_translation: mode === "manual",
     },
   };
 }

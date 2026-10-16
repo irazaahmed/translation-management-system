@@ -156,6 +156,10 @@ Stage codes come from `lib/et.ts`. Pipelines **depend on the item type**:
   *Pending Assignment*, *Awaiting final email* (all stages done) or *Completed* (final email sent).
 - Stages marked N/A or Merged in the UI are skipped (`state: "not_applicable" | "merged"`)
   and don't count toward `progress`.
+- **Translation mode.** Translation is normally done with AI, and Editing is done along with it.
+  For these items (`translation_mode: "ai"`, the default for new items) the ED stage has
+  `with_tr: true` (`state: "with_tr"`). ED is skipped, and TR is named **"Translation & Editing"**.
+  For `translation_mode: "manual"` items, ED is a normal step of its own.
 
 ---
 
@@ -267,7 +271,8 @@ curl -s "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID" \
 }
 ```
 
-- `pipeline[].state`: `pending` | `in_progress` | `done` | `not_applicable` | `merged`.
+- `pipeline[].state`: `pending` | `in_progress` | `done` | `not_applicable` | `merged` | `with_tr` (ED only).
+- `translation_mode`: `"ai"` (ED combined into TR) or `"manual"` (ED is a separate step).
 - `tracking`: who held the item, and when. It is built from each stage's holder and dates, plus
   any "returned to fix" entries, sorted by start date. (TMS has no separate history table, so if
   a stage's holder is changed later, only the latest holder for that stage is known.)
@@ -297,6 +302,7 @@ mgz 9 with DSN, bks 9 with RTP) and starts as *Pending Assignment*.
 | `priority` | no | `low` \| `normal` \| `urgent` |
 | `further_process` | no | text (≤ 5000), shown as the item's notes |
 | `sender_name`, `sender_email` | no | text |
+| `translation_mode` | no | `"ai"` (default: Editing is combined into TR) or `"manual"` (ED is a separate step) |
 | `allow_duplicate` | no | `true` to create even if an item with the same title (case-insensitive) exists |
 | `note` | no | audit note (≤ 1000) |
 
@@ -356,10 +362,13 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/pipe
 ```
 
 - Each entry needs a `code` that exists on this item, plus at least one of `holder`,
-  `sent_date`, `received_date`, `not_applicable` or `merged`. Only the fields you send are
+  `sent_date`, `received_date`, `not_applicable`, `merged` or `with_tr`. Only the fields you send are
   changed; `null` clears a field.
 - `not_applicable: true` / `merged: true` skip a stage, like the pipeline editor's N/A and Merged
   checkboxes. Skipped stages don't count toward progress. Send `false` to undo.
+- `with_tr` (ED only) switches the translation mode, like the TR card's **AI · TR+ED / Manual** toggle.
+  `{ "code": "ED", "with_tr": true }` combines ED into TR (AI). `false` makes ED a separate step again.
+  ED's saved holder and dates are kept either way.
 - Up to 20 entries. If any entry is invalid, nothing is written and a `400` lists every problem.
 
 ### Response (both forms)

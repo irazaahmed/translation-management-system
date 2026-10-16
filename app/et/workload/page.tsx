@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemsWithStages, getCachedEtAllReturns, type EtReturnRow } from "@/lib/etData";
-import { activeStages, computeCurrentStep, reminderInfo, returnBadgeLabel, stageName, typeShortLabel } from "@/lib/et";
+import { activeStages, computeCurrentStep, isTrEdCombined, itemStageName, reminderInfo, returnBadgeLabel, typeShortLabel } from "@/lib/et";
 import type { EtItemWithStages } from "@/lib/et";
 import WorkloadBoard, { type WorkloadGroup, type WorkloadItem } from "./WorkloadBoard";
 
@@ -59,7 +59,7 @@ export default async function EtWorkloadPage() {
         title: it.title,
         type,
         stageCode: current.stage,
-        stageName: current.stage ? stageName(current.stage) : current.label,
+        stageName: current.label,
         daysHeld: daysSince(current.since),
         delivery: info.delivery,
         daysLeft: info.daysLeft,
@@ -76,7 +76,7 @@ export default async function EtWorkloadPage() {
         title: it.title,
         type,
         stageCode: s.stage,
-        stageName: stageName(s.stage),
+        stageName: itemStageName(s.stage, isTrEdCombined(it.stages)),
         daysHeld: daysSince(s.sent_date),
         delivery: info.delivery,
         daysLeft: info.daysLeft,

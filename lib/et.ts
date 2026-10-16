@@ -257,13 +257,31 @@ export interface EtStage {
   not_applicable: boolean;
   /** Stage skipped because the parts were merged into another file. */
   merged: boolean;
+  /**
+   * ED only: Editing is done together with Translation (AI translation), so it
+   * is not a separate step. Skipped like N/A; the TR step covers both.
+   */
+  with_tr: boolean;
   created_at?: string;
   updated_at?: string;
 }
 
-/** A stage that does not count toward the pipeline (skipped as N/A or Merged). */
-export function isStageSkipped(s: Pick<EtStage, "not_applicable" | "merged">): boolean {
-  return s.not_applicable || s.merged;
+/** A stage that does not count toward the pipeline (skipped as N/A, Merged, or ED done with TR). */
+export function isStageSkipped(s: Pick<EtStage, "not_applicable" | "merged"> & { with_tr?: boolean }): boolean {
+  return s.not_applicable || s.merged || !!s.with_tr;
+}
+
+/**
+ * Translation & Editing combined (AI translation): the ED row is flagged
+ * with_tr, so TR covers both steps. Manual translation keeps ED as its own step.
+ */
+export function isTrEdCombined(stages: Pick<EtStage, "stage" | "with_tr">[]): boolean {
+  return stages.some((s) => s.stage === "ED" && !!s.with_tr);
+}
+
+/** Display name for a stage, aware of TR+ED being combined ("Translation & Editing"). */
+export function itemStageName(code: StageCode, trEdCombined: boolean): string {
+  return code === "TR" && trEdCombined ? "Translation & Editing" : stageName(code);
 }
 
 /**
@@ -422,6 +440,7 @@ export function computeCurrentStep(
   // final email is what completes the item; the first one is just the hand-off.
   const isWsb = applicable.some((s) => s.stage === "PIS" || s.stage === "FFM");
   const completingEmail = isWsb ? finalEmailDate2 : finalEmailDate;
+  const combined = isTrEdCombined(stages);
 
   const completedResult: CurrentStep = {
     stage: null,
@@ -443,7 +462,7 @@ export function computeCurrentStep(
   // not here. Detect that by the LAST real (non-N/A) stage being Merged. When the
   // tail is merged and no real work is still pending, the item is Complete even
   // without its own final email.
-  const nonNa = [...stages].filter((s) => !s.not_applicable).sort((a, b) => a.seq - b.seq);
+  const nonNa = [...stages].filter((s) => !s.not_applicable && !s.with_tr).sort((a, b) => a.seq - b.seq);
   const endedByMerge = nonNa.length > 0 && !!nonNa[nonNa.length - 1].merged;
   if (endedByMerge && doneCount === totalCount) return completedResult;
 
@@ -457,7 +476,7 @@ export function computeCurrentStep(
     const cur = inProgress[inProgress.length - 1];
     return {
       stage: cur.stage,
-      label: stageName(cur.stage),
+      label: itemStageName(cur.stage, combined),
       holder: cur.person ?? null,
       since: cur.sent_date ?? null,
       completed: false,
@@ -553,23 +572,27 @@ export function computeAdvance(
   // "next stage" lookup matches the real pipeline order for this item.
   const actSeq = actRow?.seq ?? STAGE_BY_CODE[actStage].seq;
   const next = applicable.find((s) => s.seq > actSeq && !s.received_back_date) ?? null;
+  const combined = isTrEdCombined(stages);
 
   return {
     stage: actStage,
-    stageName: stageName(actStage),
+    stageName: itemStageName(actStage, combined),
     holder: current.holder,
     days: daysSince(current.since, now),
     inProgress,
     nextStage: next?.stage ?? null,
-    nextStageName: next ? stageName(next.stage) : null,
+    nextStageName: next ? itemStageName(next.stage, combined) : null,
   };
 }
 
 /**
  * Build the blank stage rows for a brand-new item (no item_id yet). wsb items
  * get the 2 extra "Islamic Sisters" stages on top of the standard 8.
+ *
+ * By default Translation is done with AI, so Editing is combined into TR (the
+ * ED row is flagged with_tr). Pass manualTranslation to keep ED as its own step.
  */
-export function blankStages(type?: string | null): Array<{
+export function blankStages(type?: string | null, manualTranslation = false): Array<{
   stage: StageCode;
   seq: number;
   person: null;
@@ -577,6 +600,7 @@ export function blankStages(type?: string | null): Array<{
   received_back_date: null;
   not_applicable: false;
   merged: false;
+  with_tr: boolean;
 }> {
   return stagesForType(type).map((s) => ({
     stage: s.code,
@@ -586,6 +610,7 @@ export function blankStages(type?: string | null): Array<{
     received_back_date: null,
     not_applicable: false,
     merged: false,
+    with_tr: s.code === "ED" && !manualTranslation,
   }));
 }
 

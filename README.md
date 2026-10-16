@@ -84,6 +84,10 @@ For every stage you record **who** has it, the date it was **sent** to them, and
 came **back**. From those dates the app works out the **current step**, **who is holding it now**,
 and **how many days** it has been sitting there.
 
+- **AI translation (default):** Editing (ED) is done together with Translation, so new items
+  combine them. ED is hidden and the TR step shows as **"Translation & Editing"**. For an item
+  translated manually, tick **Manual translation** on the New item form, or switch the TR card
+  to **Manual** in the pipeline editor. ED then shows as its own step.
 - A stage can be marked **N/A** (not needed for this item) or **Merged** (its parts were merged
   into a combined file), and those stages are skipped in the progress count.
 - **Returns** — if a missing part is noticed later, you can log a quick “sent back to fix it”

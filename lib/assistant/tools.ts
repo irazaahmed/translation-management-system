@@ -21,7 +21,7 @@ import {
   getCachedEtItemRows,
   getCachedEtItemsWithStages,
 } from "@/lib/etData";
-import { computeCurrentStep, daysSince, effectiveWordCount, reminderInfo, stageName, typeLabel, wsbDeduction } from "@/lib/et";
+import { computeCurrentStep, daysSince, effectiveWordCount, isTrEdCombined, itemStageName, reminderInfo, typeLabel, wsbDeduction } from "@/lib/et";
 
 /**
  * Tool layer for the AI assistant. The model decides which of these to call;
@@ -601,14 +601,16 @@ async function getEtItem(args: ToolArgs) {
     days_left: info.daysLeft,
     final_email_date: item.final_email_date_2 || item.final_email_date,
     stages: item.stages.map((s) => ({
-      stage: stageName(s.stage),
+      stage: itemStageName(s.stage, isTrEdCombined(item.stages)),
       code: s.stage,
       person: s.person,
       sent: s.sent_date,
       received_back: s.received_back_date,
       not_applicable: s.not_applicable,
       merged: s.merged,
+      with_tr: s.with_tr,
     })),
+    translation_mode: isTrEdCombined(item.stages) ? "ai" : "manual",
   };
 }
 

@@ -8,7 +8,8 @@ import {
   stagesForType,
   isWsbType,
   computeCurrentStep,
-  stageName,
+  isTrEdCombined,
+  itemStageName,
   type EtStage,
   type StageCode,
 } from "@/lib/et";
@@ -88,6 +89,9 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
   const isWsb = isWsbType(type);
 
   const [rows, setRows] = useState<Editable[]>(() => toEditable(stages, type));
+  // AI translation: Editing (ED) is done with Translation, so ED is hidden and
+  // the TR card covers both. Manual translation shows ED as its own step.
+  const [combined, setCombined] = useState(() => isTrEdCombined(stages));
   const [finalEmail, setFinalEmail] = useState(finalEmailDate ?? "");
   const [finalEmail2, setFinalEmail2] = useState(finalEmailDate2 ?? "");
   const [dirty, setDirty] = useState(false);
@@ -108,12 +112,24 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
           received_back_date: r.received_back_date || null,
           not_applicable: r.skip === "na",
           merged: r.skip === "merged",
+          with_tr: r.stage === "ED" && combined,
         })),
         finalEmail || null,
         finalEmail2 || null
       ),
-    [rows, itemId, finalEmail, finalEmail2]
+    [rows, itemId, finalEmail, finalEmail2, combined]
   );
+
+  const setMode = (v: boolean) => {
+    setCombined(v);
+    setDirty(true);
+  };
+  // ED is hidden (not a step of its own) while it is combined with TR.
+  const isHidden = (r: Editable) => combined && r.stage === "ED";
+  const edRow = rows.find((r) => r.stage === "ED");
+  const edHasData = !!edRow && !!(edRow.person || edRow.sent_date || edRow.received_back_date);
+  // Cards shown, numbered by position so hiding ED leaves no gap.
+  const visible = rows.map((r, i) => ({ r, i })).filter(({ r }) => !isHidden(r));
 
   const setFinal = (v: string) => {
     setFinalEmail(v);
@@ -160,12 +176,12 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
 
   // After parts are merged, the leftover empty stages can be marked merged in one go.
   const emptyActiveCount = rows.filter(
-    (r) => r.skip === "active" && !r.person && !r.sent_date && !r.received_back_date
+    (r) => !isHidden(r) && r.skip === "active" && !r.person && !r.sent_date && !r.received_back_date
   ).length;
   const markEmptyMerged = () => {
     setRows((prev) =>
       prev.map((r) =>
-        r.skip === "active" && !r.person && !r.sent_date && !r.received_back_date
+        !isHidden(r) && r.skip === "active" && !r.person && !r.sent_date && !r.received_back_date
           ? { ...r, skip: "merged" as SkipState }
           : r
       )
@@ -193,6 +209,7 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
           received_back_date: r.received_back_date || null,
           not_applicable: r.skip === "na",
           merged: r.skip === "merged",
+          with_tr: r.stage === "ED" && combined,
         })),
         finalEmail || null,
         isWsb ? finalEmail2 || null : undefined
@@ -215,20 +232,23 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
     return (
       <div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {rows.map((r) => {
+        {visible.map(({ r }, pos) => {
           const st = stageStateOf(r);
           return (
             <div key={r.stage} className={`rounded-xl border p-3 ${st === "current" ? "border-emerald-400 dark:border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"}`}>
               <div className="flex items-center gap-2">
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${STATE_DOT[st]}`}>
-                  {st === "done" ? "✓" : r.seq}
+                  {st === "done" ? "✓" : pos + 1}
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.stage}</p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{stageName(r.stage)}</p>
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{itemStageName(r.stage, combined)}</p>
                 </div>
                 <span className="ml-auto text-[11px] font-medium text-gray-400 dark:text-gray-500">{STATE_LABEL[st]}</span>
               </div>
+              {r.stage === "TR" && (
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{combined ? "AI translation · includes Editing (ED)" : "Manual translation · ED is a separate step"}</p>
+              )}
               {r.skip === "merged" ? (
                 <p className="mt-2 text-xs italic text-violet-600 dark:text-violet-400">Merged into the combined file — stage not needed.</p>
               ) : (
@@ -263,17 +283,17 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
   return (
     <div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {rows.map((r, i) => {
+        {visible.map(({ r, i }, pos) => {
           const st = stageStateOf(r);
           return (
             <div key={r.stage} className={`rounded-xl border p-3 ${st === "current" ? "border-emerald-400 dark:border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"} ${r.skip !== "active" ? "opacity-70" : ""}`}>
               <div className="flex items-center gap-2">
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${STATE_DOT[st]}`}>
-                  {st === "done" ? "✓" : r.seq}
+                  {st === "done" ? "✓" : pos + 1}
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.stage}</p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{stageName(r.stage)}</p>
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{itemStageName(r.stage, combined)}</p>
                 </div>
                 <select
                   aria-label={`${r.stage} state`}
@@ -286,6 +306,18 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
                   <option value="merged">Merged</option>
                 </select>
               </div>
+
+              {r.stage === "TR" && (
+                <div className="mt-2">
+                  <div role="group" aria-label="Translation mode" className="inline-flex rounded-md border border-gray-300 dark:border-gray-600 p-0.5 text-[11px] font-medium">
+                    <button type="button" onClick={() => setMode(true)} aria-pressed={combined} className={`rounded px-2 py-0.5 ${combined ? "bg-emerald-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>AI · TR+ED</button>
+                    <button type="button" onClick={() => setMode(false)} aria-pressed={!combined} className={`rounded px-2 py-0.5 ${!combined ? "bg-emerald-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>Manual</button>
+                  </div>
+                  {combined && edHasData && (
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">ED already has data — it is kept, but hidden while AI mode is on.</p>
+                  )}
+                </div>
+              )}
 
               {r.skip === "merged" ? (
                 <p className="mt-2 text-xs italic text-violet-600 dark:text-violet-400">Merged into the combined file — stage not needed.</p>
@@ -317,7 +349,7 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
       {/* Final email(s) — when set, the item is Complete */}
       {isWsb ? (
         <>
-          {editableEmailCard(finalEmail, setFinal, "F. Email Sent for Islamic Brothers", "First final email — sent to the brothers. Then the sisters' phase (steps 9–10) begins.")}
+          {editableEmailCard(finalEmail, setFinal, "F. Email Sent for Islamic Brothers", "First final email — sent to the brothers. Then the sisters' phase (PIS, FFM) begins.")}
           {editableEmailCard(finalEmail2, setFinal2, "F. Email sent for Islamic Sisters", "Second final email — when this date is set, the item is Complete.")}
         </>
       ) : (

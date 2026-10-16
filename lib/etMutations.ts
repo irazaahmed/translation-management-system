@@ -43,6 +43,8 @@ export interface CreateEtItemInput {
   further_process: string | null;
   sender_name: string | null;
   sender_email: string | null;
+  /** Translation done manually: keep Editing (ED) as its own step. Default: AI, ED combined into TR. */
+  manual_translation?: boolean;
 }
 
 /**
@@ -76,7 +78,7 @@ export async function createEtItem(input: CreateEtItemInput, client?: SupabaseCl
   if (error) throw error;
   const itemId = item.id as string;
 
-  const stageRows = blankStages(input.type).map((s) => ({ ...s, item_id: itemId }));
+  const stageRows = blankStages(input.type, !!input.manual_translation).map((s) => ({ ...s, item_id: itemId }));
   const { error: stageError } = await supabase.from("et_stages").insert(stageRows);
   if (stageError) throw stageError;
 
@@ -131,6 +133,8 @@ export interface StageUpsert {
   received_back_date: string | null;
   not_applicable: boolean;
   merged: boolean;
+  /** ED only: Editing combined into TR (AI translation). */
+  with_tr?: boolean;
 }
 
 /**
@@ -169,6 +173,7 @@ export async function saveEtStages(
     received_back_date: s.received_back_date || null,
     not_applicable: !!s.not_applicable,
     merged: !!s.merged,
+    with_tr: s.stage === "ED" && !!s.with_tr,
   }));
 
   const { error } = await supabase
@@ -421,7 +426,7 @@ export async function patchEtStages(
   // Recompute the stored status from the item's full, current stage set.
   const { data: stages, error } = await supabase
     .from("et_stages")
-    .select("stage, seq, person, sent_date, received_back_date, not_applicable, merged")
+    .select("stage, seq, person, sent_date, received_back_date, not_applicable, merged, with_tr")
     .eq("item_id", itemId);
   if (error) throw error;
 

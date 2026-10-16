@@ -64,6 +64,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
         received_back_date: s.received_back_date,
         not_applicable: s.not_applicable,
         merged: s.merged,
+        with_tr: s.with_tr,
       }));
       await saveEtStages(
         id,

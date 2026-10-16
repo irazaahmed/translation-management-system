@@ -109,6 +109,7 @@ export async function createEtItemAction(
       further_process: (formData.get("further_process") as string)?.trim() || null,
       sender_name: (formData.get("sender_name") as string)?.trim() || null,
       sender_email: (formData.get("sender_email") as string)?.trim() || null,
+      manual_translation: formData.get("manual_translation") === "on",
     });
     revalidateEt();
   } catch (error) {
