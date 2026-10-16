@@ -69,27 +69,85 @@ function sortStages(stages: EtStage[]): EtStage[] {
   return [...stages].sort((a, b) => a.seq - b.seq);
 }
 
-/** The heavy join (all items + all their stages), cached across requests. */
-const loadEtItemsWithStages = unstable_cache(
-  async (): Promise<EtItemWithStages[]> => {
+/**
+ * A stage row packed as a tuple for the all-items cache:
+ * [id, stage, seq, person, sent_date, received_back_date, not_applicable, merged, with_tr].
+ * item_id comes from the parent item and created_at / updated_at are not used
+ * by any list view, so they are left out.
+ */
+type StageTuple = [string, StageCode, number, string | null, string | null, string | null, 0 | 1, 0 | 1, 0 | 1];
+
+const LIST_STAGE_COLUMNS = "id, stage, seq, person, sent_date, received_back_date, not_applicable, merged, with_tr";
+
+/**
+ * Next's data cache refuses entries over 2MB and then keeps serving the last
+ * entry that fit — silently stale data. Warn well before that limit.
+ */
+const CACHE_WARN_BYTES = 1_500_000;
+
+/**
+ * The heavy join (all items + all their stages), cached across requests in a
+ * compact form: stages as tuples. Storing full stage objects pushed this entry
+ * past the 2MB limit, so lists showed an old snapshot missing newer items.
+ */
+const loadEtItemsCompact = unstable_cache(
+  async (): Promise<[EtItem, StageTuple[]][]> => {
     const { data, error } = await supabase
       .from("et_items")
-      .select(`${ITEM_COLUMNS}, et_stages(${STAGE_COLUMNS})`)
+      .select(`${ITEM_COLUMNS}, et_stages(${LIST_STAGE_COLUMNS})`)
       .order("created_at", { ascending: true });
 
     if (error) throw error;
 
-    return (data || [])
-      .map((row: any) => ({
-        ...(row as EtItem),
-        stages: sortStages((row.et_stages || []) as EtStage[]),
-      }))
+    const packed = (data || [])
       // Quran-e-Pak items live in the Quranic module — hide them from English.
-      .filter((item) => !isQuranType(item.type));
+      .filter((row: any) => !isQuranType(row.type))
+      .map(({ et_stages, ...item }: any): [EtItem, StageTuple[]] => [
+        item as EtItem,
+        ((et_stages || []) as EtStage[]).map((s) => [
+          s.id,
+          s.stage,
+          s.seq,
+          s.person,
+          s.sent_date,
+          s.received_back_date,
+          s.not_applicable ? 1 : 0,
+          s.merged ? 1 : 0,
+          s.with_tr ? 1 : 0,
+        ]),
+      ]);
+
+    const bytes = JSON.stringify(packed).length;
+    if (bytes > CACHE_WARN_BYTES) {
+      console.warn(`ET items cache is ${bytes} bytes — close to Next's 2MB data-cache limit (entries over it go stale).`);
+    }
+    return packed;
   },
-  ["et-items-with-stages"],
+  // Bumped key: ignore the old oversized (stale) entry.
+  ["et-items-with-stages-v2"],
   ET_CACHE
 );
+
+async function loadEtItemsWithStages(): Promise<EtItemWithStages[]> {
+  const packed = await loadEtItemsCompact();
+  return packed.map(([item, stages]) => ({
+    ...item,
+    stages: sortStages(
+      stages.map(([id, stage, seq, person, sent_date, received_back_date, na, merged, withTr]) => ({
+        id,
+        item_id: item.id,
+        stage,
+        seq,
+        person,
+        sent_date,
+        received_back_date,
+        not_applicable: !!na,
+        merged: !!merged,
+        with_tr: !!withTr,
+      }))
+    ),
+  }));
+}
 
 /** All items with their stages, fully loaded (per-request deduped + data-cached). */
 export const getCachedEtItemsWithStages = cache((): Promise<EtItemWithStages[]> => loadEtItemsWithStages());
