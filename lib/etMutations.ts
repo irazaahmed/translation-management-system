@@ -167,7 +167,7 @@ export async function saveEtStages(
   const rows = stages.map((s) => ({
     item_id: itemId,
     stage: s.stage,
-    seq: stageSeq(itemType, s.stage),
+    seq: stageSeq(itemType, s.stage, stages),
     person: s.person?.trim() || null,
     sent_date: s.sent_date || null,
     received_back_date: s.received_back_date || null,

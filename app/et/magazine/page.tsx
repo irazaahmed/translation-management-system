@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
-import { STAGES, daysSince, isMagazineType, RETURN_BADGE_CLASSES, returnBadgeLabel, returnBadgeDetail, stageBadgeClasses, stageChipLabel } from "@/lib/et";
+import { daysSince, stagesForType, isMagazineType, RETURN_BADGE_CLASSES, returnBadgeLabel, returnBadgeDetail, stageBadgeClasses, stageChipLabel } from "@/lib/et";
 import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +98,7 @@ export default async function EtMagazinePage() {
       ) : (
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
-            {STAGES.map((s) => (
+            {stagesForType("mgz").map((s) => (
               <span key={s.code} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${stageBadgeClasses(s.code)}`} title={s.name}>{s.code}</span>
             ))}
           </div>

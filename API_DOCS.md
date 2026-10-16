@@ -144,12 +144,17 @@ Stage codes come from `lib/et.ts`. Pipelines **depend on the item type**:
 
 | Type(s) | Pipeline |
 |---------|----------|
-| standard (fsp, wbl, dwk, aer, rpr, …) | TR → IF → CM → ED → NR → ST → FF → FPR |
-| `wsb` (Weekly Speech Brothers) | standard 8 → **PIS → FFM** |
-| `mgz` (Magazine) | TR … FF → **DSN** (Designing) → FPR |
-| `bks` (Books) | standard 8 → **RTP** (Ready to Print) |
+| standard (fsp, wbl, dwk, aer, rpr, …) | TR → CM → **FO** (Formation) → ED → NR → ST → FPR |
+| `wsb` (Weekly Speech Brothers) | standard → **PIS → FFM** |
+| `mgz` (Magazine) | TR … ST → **DSN** (Designing) → FPR |
+| `bks` (Books) | TR → IF → CM → ED → NR → ST → FF → FPR → **RTP** (Ready to Print) |
 
 `GET /api/v1/meta` returns the exact list per type.
+
+Only Books keep the two formation steps, Initial Formation (IF) and Final Formatting (FF). Every
+other type has a single **Formation (FO)** step right after CM. Older items that already had both
+IF and FF in use, plus completed and stopped items, keep their original IF/FF pipeline. An item's
+`pipeline` array always shows the stages it really has.
 
 - A stage is **in progress** when it has a `sent_date` and no `received_date`.
 - **Currently at** = the highest in-progress stage. With nothing in progress, the item is

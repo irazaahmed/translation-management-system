@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
-import { stagesForType, stageName, type EtReturn, type StageCode } from "@/lib/et";
+import { stagesForType, stageName, type EtReturn, type EtStage, type StageCode } from "@/lib/et";
 import {
   addEtReturnAction,
   updateEtReturnAction,
@@ -24,17 +24,19 @@ function fmt(d: string | null): string {
 interface Props {
   itemId: string;
   type: string | null;
+  /** The item's stage rows — picks the right pipeline (Formation vs legacy IF/FF). */
+  stages: Pick<EtStage, "stage">[];
   returns: EtReturn[];
   peopleNames: string[];
 }
 
-export default function EtReturns({ itemId, type, returns, peopleNames }: Props) {
+export default function EtReturns({ itemId, type, stages: itemStages, returns, peopleNames }: Props) {
   const { canWrite } = usePermissions();
   const toast = useToast();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
-  const stages = stagesForType(type);
+  const stages = stagesForType(type, itemStages);
 
   const [stage, setStage] = useState<StageCode | "">("");
   const [note, setNote] = useState("");

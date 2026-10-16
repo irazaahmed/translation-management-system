@@ -273,7 +273,7 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
       )}
 
       {/* Returns — go back and complete a missed part */}
-      <EtReturns itemId={item.id} type={item.type} returns={returns} peopleNames={peopleNames} />
+      <EtReturns itemId={item.id} type={item.type} stages={item.stages} returns={returns} peopleNames={peopleNames} />
 
       {/* Further process notes */}
       {item.further_process && (

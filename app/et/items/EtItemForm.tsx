@@ -220,7 +220,7 @@ export default function EtItemForm({ item }: Props) {
 
           {!isEdit && (
             <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-              The 8 pipeline stages (TR → FPR) are created empty. You can assign people and dates on the item page right after creating it.
+              The pipeline stages (TR → FPR) are created empty. You can assign people and dates on the item page right after creating it.
             </p>
           )}
         </div>

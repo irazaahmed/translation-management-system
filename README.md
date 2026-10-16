@@ -65,20 +65,23 @@ This module tracks every piece of work (a “**work item**”) as it travels thr
 production line. The current holder and step are **calculated automatically** from the dates
 entered — they are never typed in by hand, so the status is always honest.
 
-### 🔁 The 8‑stage pipeline
+### 🔁 The pipeline
 
 Each work item flows through these stages, in order:
 
 | # | Code | Stage |
 |---|------|-------|
 | 1 | TR | Translation |
-| 2 | IF | Initial Formation |
-| 3 | CM | Comparison |
+| 2 | CM | Comparison |
+| 3 | FO | Formation |
 | 4 | ED | Editing |
 | 5 | NR | Native Review |
 | 6 | ST | S. Tafteesh |
-| 7 | FF | Final Formatting |
-| 8 | FPR | Final Proofreading |
+| 7 | FPR | Final Proofreading |
+
+**Books** keep two formation steps instead of one: TR → IF (Initial Formation) → CM → ED → NR → ST
+→ FF (Final Formatting) → FPR → RTP. Older items that already had both IF and FF in use, plus
+completed and stopped items, keep their original IF/FF pipeline.
 
 For every stage you record **who** has it, the date it was **sent** to them, and the date it
 came **back**. From those dates the app works out the **current step**, **who is holding it now**,

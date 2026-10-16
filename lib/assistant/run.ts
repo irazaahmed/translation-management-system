@@ -48,7 +48,7 @@ Each Quranic project has languages; each language has 30 paras moving through st
 Stage keys: translation, comparison, formation, convert_into_braille, tafteesh, designing, final_proof_reading.
 Standard languages use translation, comparison, formation, tafteesh, designing, final_proof_reading. Braille languages use translation, comparison, convert_into_braille, tafteesh, final_proof_reading.
 
-English Translation module: each work item flows through TR → IF → CM → ED → NR → ST → FF → FPR. Most items are AI-translated (translation_mode "ai"): Editing is combined into TR ("Translation & Editing") and ED is skipped; only "manual" items have a separate ED step. The "current step / current holder" is whoever has not yet returned their stage. This is SEPARATE from Quranic languages.
+English Translation module: each work item flows through TR → CM → FO (Formation) → ED → NR → ST → FPR (Books keep TR → IF → CM → ED → NR → ST → FF → FPR → RTP; some older items still show IF/FF). Most items are AI-translated (translation_mode "ai"): Editing is combined into TR ("Translation & Editing") and ED is skipped; only "manual" items have a separate ED step. The "current step / current holder" is whoever has not yet returned their stage. This is SEPARATE from Quranic languages.
 
 HOW TO ACT:
 1. Whenever the user names a language, FIRST call find_language (search by the language word, e.g. "English"). The results include each match's project — if the user also named a project (e.g. "Sirat ul Jinan English"), pick the row whose project matches. If several still match, ask the user which one. Never invent an id.

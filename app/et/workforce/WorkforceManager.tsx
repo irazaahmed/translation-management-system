@@ -6,7 +6,7 @@ import Link from "next/link";
 import Avatar from "@/components/Avatar";
 import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
-import { STAGES, stageBadgeClasses, type EtPerson, type EtAssignment, type StageCode } from "@/lib/et";
+import { FILTER_STAGES, stageBadgeClasses, type EtPerson, type EtAssignment, type StageCode } from "@/lib/et";
 import {
   addEtPersonAction,
   updateEtPersonAction,
@@ -17,7 +17,7 @@ import AssignmentPlanner, { type PlannerItem } from "./AssignmentPlanner";
 
 export type { PlannerItem };
 
-const SKILL_CODES = STAGES.map((s) => s.code);
+const SKILL_CODES = FILTER_STAGES.map((s) => s.code);
 
 /** Pull recognised stage codes out of a free-text skills string. */
 function parseSkills(skills: string | null): StageCode[] {

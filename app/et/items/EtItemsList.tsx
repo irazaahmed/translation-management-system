@@ -8,7 +8,7 @@ import {
   RETURN_BADGE_CLASSES,
   returnBadgeLabel,
   returnBadgeDetail,
-  STAGES,
+  FILTER_STAGES,
   daysSince,
   effectiveWordCount,
   itemCategory,
@@ -283,7 +283,7 @@ export default function EtItemsList({ items, initial }: Props) {
 
           <select aria-label="Filter by current stage" value={stage} onChange={(e) => setStage(e.target.value)} className={selectCls}>
             <option value="all">All Stages</option>
-            {STAGES.map((s) => (
+            {FILTER_STAGES.map((s) => (
               <option key={s.code} value={s.code}>{s.code} · {s.name}</option>
             ))}
           </select>

@@ -134,7 +134,7 @@ const RETURN_SORTS = [
 const DEFAULT_SORT = "received-desc";
 
 /** Pipeline order for sorting the Stage filter (incl. magazine DSN, wsb PIS/FFM). */
-const STAGE_CODE_ORDER = ["TR", "IF", "CM", "ED", "NR", "ST", "FF", "DSN", "FPR", "PIS", "FFM"];
+const STAGE_CODE_ORDER = ["TR", "IF", "CM", "FO", "ED", "NR", "ST", "FF", "DSN", "FPR", "PIS", "FFM", "RTP"];
 
 export default function ReportBuilder({ activity, items, itemStages, returns, people, defaultFrom, defaultTo }: Props) {
   const [reportType, setReportType] = useState<ReportType>("activity");

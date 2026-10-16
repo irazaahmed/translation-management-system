@@ -14,6 +14,8 @@ export const ET_CACHE_TAG = "et-data";
 
 export type StageCode =
   | "TR" | "IF" | "CM" | "ED" | "NR" | "ST" | "FF" | "FPR"
+  // Every type except Books: one Formation step (after CM) replaces IF + FF.
+  | "FO"
   // Weekly Speech Brothers (wsb) only — an extra "Islamic Sisters" phase that
   // runs after the first final email, before a second (final) email.
   | "PIS" | "FFM"
@@ -26,7 +28,12 @@ export type ItemBoard = "main_2026" | "kanzul_madaris" | "magazine";
 export type ItemStatus = "pending_assignment" | "in_progress" | "completed";
 export type ItemPriority = "low" | "normal" | "urgent";
 
-/** The standard 8-stage pipeline, in order, with their full names. */
+/**
+ * The original 8-stage pipeline, in order, with their full names. Books still
+ * use it (with RTP); for every other type it is the LEGACY pipeline, kept only
+ * for items that already have IF / FF rows (completed, stopped, or past both
+ * formations when Formation was introduced). New items use FO_STAGES.
+ */
 export const STAGES: { code: StageCode; seq: number; name: string }[] = [
   { code: "TR", seq: 1, name: "Translation" },
   { code: "IF", seq: 2, name: "Initial Formation" },
@@ -77,11 +84,54 @@ export const BKS_STAGES: { code: StageCode; seq: number; name: string }[] = [
 
 const ALL_STAGES = [...STAGES, ...WSB_EXTRA_STAGES];
 
+/**
+ * The Formation pipeline — every type except Books. Initial Formation (IF) and
+ * Final Formatting (FF) are replaced by a single Formation (FO) step right
+ * after Comparison: TR, CM, FO, ED, NR, ST, FPR.
+ */
+export const FO_STAGES: { code: StageCode; seq: number; name: string }[] = [
+  { code: "TR", seq: 1, name: "Translation" },
+  { code: "CM", seq: 2, name: "Comparison" },
+  { code: "FO", seq: 3, name: "Formation" },
+  { code: "ED", seq: 4, name: "Editing" },
+  { code: "NR", seq: 5, name: "Native Review" },
+  { code: "ST", seq: 6, name: "S.Tafteesh" },
+  { code: "FPR", seq: 7, name: "Final Proofreading" },
+];
+
+/** wsb on the Formation pipeline: the sisters phase follows FPR (PIS 8, FFM 9). */
+const FO_WSB_STAGES: { code: StageCode; seq: number; name: string }[] = [
+  ...FO_STAGES,
+  { code: "PIS", seq: 8, name: "Prepared for Islamic Sister" },
+  { code: "FFM", seq: 9, name: "Final Formation" },
+];
+
+/** Magazine on the Formation pipeline: Designing sits between ST and FPR (DSN 7, FPR 8). */
+const FO_MGZ_STAGES: { code: StageCode; seq: number; name: string }[] = [
+  ...FO_STAGES.slice(0, 6),
+  { code: "DSN", seq: 7, name: "Designing" },
+  { code: "FPR", seq: 8, name: "Final Proofreading" },
+];
+
+/** Every base stage code across both pipelines, in display order (for filters / skills). */
+export const FILTER_STAGES: { code: StageCode; name: string }[] = [
+  { code: "TR", name: "Translation" },
+  { code: "IF", name: "Initial Formation" },
+  { code: "CM", name: "Comparison" },
+  { code: "FO", name: "Formation" },
+  { code: "ED", name: "Editing" },
+  { code: "NR", name: "Native Review" },
+  { code: "ST", name: "S.Tafteesh" },
+  { code: "FF", name: "Final Formatting" },
+  { code: "FPR", name: "Final Proofreading" },
+];
+
 // Every distinct stage code (base + sisters phase + magazine designing + books
 // ready-to-print) for name/seq lookup. The seq here is a fallback only — actual
 // ordering uses the per-row seq, which is type-aware (see stageSeq / stagesForType).
 const STAGE_DEFS = [
   ...ALL_STAGES,
+  { code: "FO" as StageCode, seq: 3, name: "Formation" },
   { code: "DSN" as StageCode, seq: 8, name: "Designing" },
   { code: "RTP" as StageCode, seq: 9, name: "Ready to Print" },
 ];
@@ -153,26 +203,46 @@ export function isBooksType(type: string | null | undefined): boolean {
 }
 
 /**
- * The pipeline stages for a given content type. wsb gets the 2 extra sisters
- * stages; magazine (mgz) gets a Designing step inserted between FF and FPR;
- * books (bks) get a final "Ready to Print" step after FPR.
+ * True when an item runs on the original IF/FF pipeline: always for Books, and
+ * for any other type only when the item already has IF / FF rows (it predates
+ * Formation and was not converted). Without stage rows (a new item) every
+ * non-book type uses the Formation (FO) pipeline.
  */
-export function stagesForType(
-  type: string | null | undefined
-): { code: StageCode; seq: number; name: string }[] {
-  if (isWsbType(type)) return ALL_STAGES;
-  if (isMagazineDesignType(type)) return MGZ_STAGES;
-  if (isBooksType(type)) return BKS_STAGES;
-  return STAGES;
+export function usesLegacyFormation(
+  type: string | null | undefined,
+  stages?: Pick<EtStage, "stage">[] | null
+): boolean {
+  if (isBooksType(type)) return true;
+  return !!stages?.some((s) => s.stage === "IF" || s.stage === "FF");
 }
 
 /**
- * The sequence number for a stage code within a given type's pipeline. This is
- * type-aware: magazine puts Designing (DSN) at 8 and FPR at 9, while every other
- * type keeps FPR at 8.
+ * The pipeline stages for an item. Books: the original 8 + "Ready to Print".
+ * Every other type: the Formation pipeline (TR, CM, FO, ED, NR, ST, FPR) — wsb
+ * adds the sisters stages, magazine adds Designing before FPR. Pass the item's
+ * stage rows so items still on the legacy IF/FF pipeline keep it.
  */
-export function stageSeq(type: string | null | undefined, code: StageCode): number {
-  const found = stagesForType(type).find((s) => s.code === code);
+export function stagesForType(
+  type: string | null | undefined,
+  stages?: Pick<EtStage, "stage">[] | null
+): { code: StageCode; seq: number; name: string }[] {
+  if (isBooksType(type)) return BKS_STAGES;
+  const legacy = usesLegacyFormation(type, stages);
+  if (isWsbType(type)) return legacy ? ALL_STAGES : FO_WSB_STAGES;
+  if (isMagazineDesignType(type)) return legacy ? MGZ_STAGES : FO_MGZ_STAGES;
+  return legacy ? STAGES : FO_STAGES;
+}
+
+/**
+ * The sequence number for a stage code within an item's pipeline (type-aware,
+ * and legacy-aware when the item's stage rows are passed).
+ */
+export function stageSeq(
+  type: string | null | undefined,
+  code: StageCode,
+  stages?: Pick<EtStage, "stage">[] | null
+): number {
+  const found = stagesForType(type, stages).find((s) => s.code === code);
   return found?.seq ?? STAGE_BY_CODE[code]?.seq ?? 0;
 }
 
@@ -734,6 +804,7 @@ export function stageBadgeClasses(stage: StageCode | null, completed = false): s
     TR: "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-900/20 dark:text-blue-400",
     IF: "bg-cyan-50 text-cyan-700 ring-cyan-600/20 dark:bg-cyan-900/20 dark:text-cyan-400",
     CM: "bg-teal-50 text-teal-700 ring-teal-600/20 dark:bg-teal-900/20 dark:text-teal-400",
+    FO: "bg-lime-50 text-lime-700 ring-lime-600/20 dark:bg-lime-900/20 dark:text-lime-400",
     ED: "bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-400",
     NR: "bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-900/20 dark:text-orange-400",
     ST: "bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-900/20 dark:text-purple-400",

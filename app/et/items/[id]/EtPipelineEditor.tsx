@@ -38,7 +38,7 @@ type Editable = {
 
 function toEditable(stages: EtStage[], type?: string | null): Editable[] {
   const byCode = new Map(stages.map((s) => [s.stage, s]));
-  return stagesForType(type).map((s) => {
+  return stagesForType(type, stages).map((s) => {
     const row = byCode.get(s.code);
     const skip: SkipState = row?.merged ? "merged" : row?.not_applicable ? "na" : "active";
     return {
