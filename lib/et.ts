@@ -25,7 +25,17 @@ export type StageCode =
   | "RTP";
 
 export type ItemBoard = "main_2026" | "kanzul_madaris" | "magazine";
-export type ItemStatus = "pending_assignment" | "in_progress" | "completed";
+/**
+ * "link_missing": the final email is sent, but the delivered work's link (online
+ * / SharePoint) or a remark hasn't been recorded yet. The item has left its
+ * working section and waits in "Link / Remarks"; adding either completes it.
+ */
+export type ItemStatus = "pending_assignment" | "in_progress" | "completed" | "link_missing";
+
+/** True for an item still being worked on — not completed and not waiting for its link/remark. */
+export function isInProcessStatus(status: ItemStatus): boolean {
+  return status !== "completed" && status !== "link_missing";
+}
 export type ItemPriority = "low" | "normal" | "urgent";
 
 /**
@@ -403,8 +413,37 @@ export interface EtItem {
   /** Optional — who sent this work in, for tracing where it came from. */
   sender_name: string | null;
   sender_email: string | null;
+  /**
+   * After the final email, a link (online / SharePoint) or a remark must be
+   * recorded before the item counts as completed. False for items that were
+   * already completed when this was introduced.
+   */
+  link_required: boolean;
+  /** Where the delivered work lives — online link or SharePoint (database) link. */
+  delivery_link: string | null;
+  /** Remarks about the delivered work (instead of, or as well as, a link). */
+  delivery_remarks: string | null;
+  /** When the link / remark was recorded (the item was completed). */
+  closeout_date: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** What computeCurrentStep needs to know about the link/remark close-out. */
+export interface Closeout {
+  /** A link or remark is required after the final email. */
+  required: boolean;
+  /** A link or remark has been recorded. */
+  done: boolean;
+}
+
+export function closeoutOf(
+  item: Pick<EtItem, "link_required" | "delivery_link" | "delivery_remarks">
+): Closeout {
+  return {
+    required: !!item.link_required,
+    done: !!(item.delivery_link?.trim() || item.delivery_remarks?.trim()),
+  };
 }
 
 export interface EtItemWithStages extends EtItem {
@@ -480,6 +519,8 @@ export interface CurrentStep {
   unassigned: boolean;
   /** wsb only: every stage is done but the final (sisters) email isn't sent yet. */
   awaitingFinalEmail: boolean;
+  /** Final email sent, but the link / remark isn't recorded yet (see ItemStatus "link_missing"). */
+  linkMissing: boolean;
   /** Count of applicable stages that are received back. */
   doneCount: number;
   /** Count of applicable stages. */
@@ -497,7 +538,8 @@ export interface CurrentStep {
 export function computeCurrentStep(
   stages: EtStage[],
   finalEmailDate?: string | null,
-  finalEmailDate2?: string | null
+  finalEmailDate2?: string | null,
+  closeout?: Closeout | null
 ): CurrentStep {
   const applicable = [...stages]
     .filter((s) => !isStageSkipped(s))
@@ -520,12 +562,24 @@ export function computeCurrentStep(
     completed: true,
     unassigned: false,
     awaitingFinalEmail: false,
+    linkMissing: false,
     doneCount: totalCount,
     totalCount,
   };
 
-  // The completing final email sent => done, regardless of any unfinished stage.
-  if (completingEmail) return completedResult;
+  // The completing final email sent => done, regardless of any unfinished stage
+  // — unless the link / remark still has to be recorded.
+  if (completingEmail) {
+    if (closeout?.required && !closeout.done) {
+      return {
+        ...completedResult,
+        label: "Link / remark missing",
+        completed: false,
+        linkMissing: true,
+      };
+    }
+    return completedResult;
+  }
 
   // Merged-out items: this item was folded into a combined file, so its pipeline
   // ends on a "Merged" stage and the final email is sent on that combined file —
@@ -552,6 +606,7 @@ export function computeCurrentStep(
       completed: false,
       unassigned: false,
       awaitingFinalEmail: false,
+      linkMissing: false,
       doneCount,
       totalCount,
     };
@@ -573,6 +628,7 @@ export function computeCurrentStep(
       completed: false,
       unassigned: false,
       awaitingFinalEmail: true,
+      linkMissing: false,
       doneCount: totalCount,
       totalCount,
     };
@@ -590,6 +646,7 @@ export function computeCurrentStep(
     completed: false,
     unassigned: true,
     awaitingFinalEmail: false,
+    linkMissing: false,
     doneCount,
     totalCount,
   };
@@ -599,10 +656,12 @@ export function computeCurrentStep(
 export function deriveStatus(
   stages: EtStage[],
   finalEmailDate?: string | null,
-  finalEmailDate2?: string | null
+  finalEmailDate2?: string | null,
+  closeout?: Closeout | null
 ): ItemStatus {
-  const c = computeCurrentStep(stages, finalEmailDate, finalEmailDate2);
+  const c = computeCurrentStep(stages, finalEmailDate, finalEmailDate2, closeout);
   if (c.completed) return "completed";
+  if (c.linkMissing) return "link_missing";
   if (c.unassigned) return "pending_assignment";
   return "in_progress";
 }
@@ -624,10 +683,11 @@ export function computeAdvance(
   stages: EtStage[],
   finalEmailDate?: string | null,
   finalEmailDate2?: string | null,
-  now: Date = new Date()
+  now: Date = new Date(),
+  closeout?: Closeout | null
 ): ItemAdvance | null {
-  const current = computeCurrentStep(stages, finalEmailDate, finalEmailDate2);
-  if (current.completed || current.awaitingFinalEmail) return null;
+  const current = computeCurrentStep(stages, finalEmailDate, finalEmailDate2, closeout);
+  if (current.completed || current.awaitingFinalEmail || current.linkMissing) return null;
 
   const applicable = [...stages].filter((s) => !isStageSkipped(s)).sort((a, b) => a.seq - b.seq);
   // When in progress, act on the current stage; otherwise the stage to START is
@@ -767,6 +827,10 @@ export function urgencyClasses(u: ReminderUrgency | null): string {
       return "bg-gray-100 text-gray-600 ring-gray-500/20 dark:bg-gray-800 dark:text-gray-400";
   }
 }
+
+/** Tailwind classes for the "Link / remark missing" badge (final email sent, link or remark not recorded yet). */
+export const LINK_MISSING_BADGE_CLASSES =
+  "bg-sky-100 text-sky-700 ring-sky-600/20 dark:bg-sky-900/20 dark:text-sky-400";
 
 /** Tailwind classes for the "Return" badge — an item currently out on an open return (sent back to fix something) always shows this instead of its normal stage/status. */
 export const RETURN_BADGE_CLASSES =

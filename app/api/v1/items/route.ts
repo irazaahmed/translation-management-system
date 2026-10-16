@@ -13,11 +13,11 @@ import {
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
 import { createEtItem } from "@/lib/etMutations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ET_CACHE_TAG, TYPE_LABELS, itemCategory } from "@/lib/et";
+import { ET_CACHE_TAG, TYPE_LABELS, itemCategory, isInProcessStatus } from "@/lib/et";
 
 export const dynamic = "force-dynamic";
 
-const STATUSES = ["active", "completed", "stopped"];
+const STATUSES = ["active", "link_missing", "completed", "stopped"];
 const SORTS = ["at-step-since", "delivery-date"];
 
 /** Oldest first; rows without the date go last. */
@@ -60,7 +60,8 @@ export async function GET(request: Request) {
       if (category && itemCategory(r.type) !== CATEGORY_SLUGS[category]) return false;
       if (type && (r.type || "").toLowerCase() !== type) return false;
       if (status === "completed" && r.derivedStatus !== "completed") return false;
-      if (status === "active" && (r.derivedStatus === "completed" || r.stopped)) return false;
+      if (status === "active" && (!isInProcessStatus(r.derivedStatus) || r.stopped)) return false;
+      if (status === "link_missing" && (r.derivedStatus !== "link_missing" || r.stopped)) return false;
       if (status === "stopped" && !r.stopped) return false;
       if (holder && (r.current.holder || "").toLowerCase() !== holder) return false;
       if (stage && r.current.stage !== stage) return false;

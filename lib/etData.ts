@@ -13,6 +13,7 @@ import {
   activeStages,
   computeCurrentStep,
   computeAdvance,
+  closeoutOf,
   isQuranType,
   ET_CACHE_TAG,
   type CurrentStep,
@@ -26,7 +27,7 @@ import {
 // ============================================
 
 const ITEM_COLUMNS =
-  "id, title, type, board, received_date, word_count, delivery_date, final_email_date, final_email_date_2, stopped, priority, status, further_process, sender_name, sender_email, created_at, updated_at";
+  "id, title, type, board, received_date, word_count, delivery_date, final_email_date, final_email_date_2, stopped, priority, status, further_process, sender_name, sender_email, link_required, delivery_link, delivery_remarks, closeout_date, created_at, updated_at";
 const STAGE_COLUMNS =
   "id, item_id, stage, seq, person, sent_date, received_back_date, not_applicable, merged, with_tr, created_at, updated_at";
 
@@ -205,7 +206,8 @@ export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
     getCachedOpenEtReturnsByItem(),
   ]);
   return items.map(({ stages, ...item }) => {
-    const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
+    const closeout = closeoutOf(item);
+    const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2, closeout);
     const openReturn = openReturnsByItem.get(item.id) ?? null;
     const inReturn = !!openReturn;
     const returnStage = openReturn?.stage ?? null;
@@ -218,10 +220,12 @@ export const getCachedEtItemRows = cache(async (): Promise<EtItemRow[]> => {
       ? "in_progress"
       : current.completed
         ? "completed"
+        : current.linkMissing
+        ? "link_missing"
         : current.unassigned
           ? "pending_assignment"
           : "in_progress";
-    const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
+    const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2, undefined, closeout);
     const activeStageCodes = activeStages(stages).map((s) => s.stage);
     return {
       ...(item as EtItem),

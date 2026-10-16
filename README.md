@@ -96,6 +96,13 @@ and **how many days** it has been sitting there.
 - **Returns** — if a missing part is noticed later, you can log a quick “sent back to fix it”
   entry (what was missing, who got it, when it went and came back).
 
+### 🔗 Link / Remarks (after the final email)
+
+Sending the final email does **not** complete an item anymore. The item leaves its section (Weekly
+Docs, Magazine, Books, …) and waits in the **Link / Remarks** tab. There you add the delivered
+work's **online or SharePoint link**, or a **remark**. Either one completes the item. Items that
+were already completed before this step was added stay completed.
+
 ### ✅ How an item is marked “Completed”
 
 An item is only **Completed** when its **Final email** has been sent — not just because the

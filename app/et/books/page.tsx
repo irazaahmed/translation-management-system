@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
-import { itemCategory, reminderInfo } from "@/lib/et";
+import { itemCategory, reminderInfo, isInProcessStatus } from "@/lib/et";
 import BooksManager, { type BookRow } from "./BooksManager";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export default async function EtBooksPage() {
   // Books only (type 'bks'), in-process only (completed & stopped are hidden),
   // ordered to match the team's tracking sheet, then alphabetically.
   const books: BookRow[] = rows
-    .filter((r) => !r.stopped && itemCategory(r.type) === "books" && r.derivedStatus !== "completed")
+    .filter((r) => !r.stopped && itemCategory(r.type) === "books" && isInProcessStatus(r.derivedStatus))
     .sort((a, b) => {
       const ia = orderIndex(a.title);
       const ib = orderIndex(b.title);

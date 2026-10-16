@@ -2,10 +2,11 @@ import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedEtItem, getCachedEtPeople, getCachedEtReturns } from "@/lib/etData";
-import { computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isTrEdCombined, isWsbType, itemStageName, returnBadgeLabel, returnBadgeDetail, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
+import { closeoutOf, computeAdvance, computeCurrentStep, daysSince, effectiveWordCount, isStageSkipped, isTrEdCombined, isWsbType, itemStageName, returnBadgeLabel, returnBadgeDetail, typeLabel, wsbDeduction, WSB_PRETRANSLATED } from "@/lib/et";
 import EtPipelineEditor from "./EtPipelineEditor";
 import EtItemActions from "./EtItemActions";
 import EtQuickAdvance from "./EtQuickAdvance";
+import EtCloseoutForm from "./EtCloseoutForm";
 import EtReturns from "./EtReturns";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,8 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
   ]);
   if (!item) notFound();
 
-  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
+  const closeout = closeoutOf(item);
+  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2, closeout);
   const sinceDays = daysSince(current.since);
   const peopleNames = people.map((p) => p.name);
   // An open return means the item is actively out being fixed — always show
@@ -65,7 +67,11 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
   const inReturn = !!openReturn;
 
   // Quick-advance data: which stage to act on next, straight from the summary.
-  const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date, item.final_email_date_2);
+  const quickAdvance = item.stopped ? null : computeAdvance(item.stages, item.final_email_date, item.final_email_date_2, undefined, closeout);
+  // After the final email the work's link / remark is recorded here (it
+  // completes the item). Shown once it is needed, or when one already exists.
+  const completingEmail = isWsbType(item.type) ? item.final_email_date_2 : item.final_email_date;
+  const showCloseout = (item.link_required && !!completingEmail) || closeout.done;
 
   // The editor copies the stages into local state once, so remount it whenever
   // the saved pipeline changes (e.g. after Quick Advance) — otherwise it keeps
@@ -155,6 +161,10 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
             <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
               ↩ {returnBadgeLabel(openReturn!.stage)}{returnBadgeDetail(openReturn!.person, openReturn!.sent_date)} — sent back to complete a missing/incorrect part. See “Returns” below.
             </p>
+          ) : current.linkMissing ? (
+            <p className="text-sm font-medium text-sky-700 dark:text-sky-400">
+              ✉ Final email sent — add the online / SharePoint link or a remark below to complete this item.
+            </p>
           ) : current.completed ? (
             <p className="text-sm font-medium text-green-700 dark:text-green-400">
               ✓ Completed{(item.final_email_date_2 || item.final_email_date) ? " — final email sent." : " — all applicable stages done."}
@@ -227,9 +237,23 @@ export default async function EtItemDetailPage({ params, searchParams }: Props) 
 
       {/* Pipeline (editable for staff, read-only for viewers) */}
       <h2 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">Pipeline</h2>
-      <EtPipelineEditor key={editorKey} itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} backHref={backHref} />
+      <EtPipelineEditor key={editorKey} itemId={item.id} stages={item.stages} peopleNames={peopleNames} finalEmailDate={item.final_email_date} finalEmailDate2={item.final_email_date_2} type={item.type} linkRequired={item.link_required} backHref={backHref} />
 
       {/* Movement timeline — who had it, when sent, when returned, how long */}
+      {showCloseout && (
+        <>
+          <h2 className="mt-6 mb-3 text-base font-semibold text-gray-900 dark:text-white">Link / Remarks</h2>
+          <div className={`rounded-xl border p-4 ${current.linkMissing ? "border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/10" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"}`}>
+            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              {current.linkMissing
+                ? "Sent — add where the work lives (online or SharePoint link), or a remark. Either one completes the item."
+                : `Recorded${item.closeout_date ? ` on ${fmt(item.closeout_date)}` : ""}. Clearing both sends the item back to Link / Remarks.`}
+            </p>
+            <EtCloseoutForm key={`${item.delivery_link ?? ""}|${item.delivery_remarks ?? ""}`} itemId={item.id} link={item.delivery_link} remarks={item.delivery_remarks} />
+          </div>
+        </>
+      )}
+
       <h2 className="mt-6 mb-3 text-base font-semibold text-gray-900 dark:text-white">Tracking — who had it &amp; when</h2>
       {timeline.length === 0 ? (
         <p className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-500 dark:text-gray-400">

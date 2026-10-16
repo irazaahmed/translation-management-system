@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, getCachedEtAssignments, type EtItemRow } from "@/lib/etData";
-import { itemCategory, returnBadgeLabel, type EtPerson, type EtAssignment } from "@/lib/et";
+import { itemCategory, returnBadgeLabel, type EtPerson, type EtAssignment, isInProcessStatus } from "@/lib/et";
 import BooksAssignmentBoard, { type BoardBook, type BoardPerson, type BoardAssignment } from "./BooksAssignmentBoard";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function EtBooksAssignmentsPage() {
 
   // In-process books only — completed & stopped are hidden (same as /et/books).
   const books: BoardBook[] = rows
-    .filter((r) => !r.stopped && itemCategory(r.type) === "books" && r.derivedStatus !== "completed")
+    .filter((r) => !r.stopped && itemCategory(r.type) === "books" && isInProcessStatus(r.derivedStatus))
     .map((b) => ({
       id: b.id,
       title: b.title,

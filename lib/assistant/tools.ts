@@ -21,7 +21,7 @@ import {
   getCachedEtItemRows,
   getCachedEtItemsWithStages,
 } from "@/lib/etData";
-import { computeCurrentStep, daysSince, effectiveWordCount, isTrEdCombined, itemStageName, reminderInfo, typeLabel, wsbDeduction } from "@/lib/et";
+import { computeCurrentStep, daysSince, effectiveWordCount, isTrEdCombined, itemStageName, reminderInfo, typeLabel, wsbDeduction, isInProcessStatus, closeoutOf } from "@/lib/et";
 
 /**
  * Tool layer for the AI assistant. The model decides which of these to call;
@@ -438,7 +438,7 @@ async function logMeeting(args: ToolArgs) {
 
 async function getEtOverview() {
   const rows = (await getCachedEtItemRows()).filter((r) => !r.stopped);
-  const active = rows.filter((r) => r.derivedStatus !== "completed");
+  const active = rows.filter((r) => isInProcessStatus(r.derivedStatus));
   const dueSoon = active.filter((r) => {
     const d = reminderInfo(r).daysLeft;
     return d != null && d <= 7;
@@ -459,6 +459,7 @@ async function getEtOverview() {
     total_items: rows.length,
     active: active.length,
     completed: rows.filter((r) => r.derivedStatus === "completed").length,
+    link_or_remark_missing: rows.filter((r) => r.derivedStatus === "link_missing").length,
     unassigned: rows.filter((r) => r.derivedStatus === "pending_assignment").length,
     due_within_7_days: dueSoon,
     longest_at_step: stuck,
@@ -468,7 +469,7 @@ async function getEtOverview() {
 async function getEtWorkload(args: ToolArgs) {
   const person = str(args.person);
   const active = (await getCachedEtItemRows()).filter(
-    (r) => !r.stopped && r.derivedStatus !== "completed"
+    (r) => !r.stopped && isInProcessStatus(r.derivedStatus)
   );
   const held = active.filter((r) => r.current.holder);
 
@@ -512,7 +513,7 @@ async function getEtReminders(args: ToolArgs) {
   const within = typeof args.within_days === "number" ? (args.within_days as number) : 14;
   const rows = await getCachedEtItemRows();
   const all = rows
-    .filter((r) => !r.stopped && r.derivedStatus !== "completed")
+    .filter((r) => !r.stopped && isInProcessStatus(r.derivedStatus))
     .map((r) => ({ r, info: reminderInfo(r) }))
     .filter((x) => x.info.delivery != null)
     .sort((a, b) => (a.info.daysLeft ?? 0) - (b.info.daysLeft ?? 0));
@@ -579,7 +580,7 @@ async function getEtItem(args: ToolArgs) {
 
   // Pass the final-email dates so an item completed by its final email shows as
   // completed (wsb completes on the SECOND final email).
-  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
+  const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2, closeoutOf(item));
   const info = reminderInfo(item);
   return {
     title: item.title,
@@ -590,7 +591,15 @@ async function getEtItem(args: ToolArgs) {
     ...(wsbDeduction(item.type, item.word_count) > 0
       ? { raw_word_count: item.word_count, pretranslated_deducted: wsbDeduction(item.type, item.word_count) }
       : {}),
-    status: current.completed ? "completed" : current.unassigned ? "pending_assignment" : "in_progress",
+    status: current.completed
+      ? "completed"
+      : current.linkMissing
+      ? "link_missing"
+      : current.unassigned
+      ? "pending_assignment"
+      : "in_progress",
+    delivery_link: item.delivery_link,
+    delivery_remarks: item.delivery_remarks,
     current_step: current.label,
     current_holder: current.holder,
     at_step_since: current.since,

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CATEGORY_LABELS,
   STAGE_BY_CODE,
+  closeoutOf,
   computeAdvance,
   computeCurrentStep,
   daysSince,
@@ -72,6 +73,9 @@ function stepRef(current: CurrentStep) {
  * since 2026-10-03", "Pending assignment — …", "Completed — …").
  */
 export function currentlyAtText(item: EtItem, current: CurrentStep): string {
+  if (current.linkMissing) {
+    return "Final email sent — add the online / SharePoint link or a remark to complete this item.";
+  }
   if (current.completed) {
     return (item.final_email_date_2 || item.final_email_date)
       ? "Completed — final email sent."
@@ -156,8 +160,9 @@ function stageState(s: EtStage): string {
 /** Full item detail: meta + pipeline + tracking history + computed state. */
 export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
   const stages = [...item.stages].sort((a, b) => a.seq - b.seq);
-  const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2);
-  const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2);
+  const closeout = closeoutOf(item);
+  const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2, closeout);
+  const advance = computeAdvance(stages, item.final_email_date, item.final_email_date_2, undefined, closeout);
   const trEd = isTrEdCombined(stages);
 
   const tracking = [
@@ -190,7 +195,7 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
     category: categorySlug(item.type),
     category_label: categoryLabel(item.type),
     board: item.board,
-    status: deriveStatus(stages, item.final_email_date, item.final_email_date_2),
+    status: deriveStatus(stages, item.final_email_date, item.final_email_date_2, closeout),
     stopped: item.stopped,
     priority: item.priority,
     word_count: item.word_count,
@@ -200,6 +205,14 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
     final_email_date: item.final_email_date,
     final_email_date_2: isWsbType(item.type) ? item.final_email_date_2 : undefined,
     sender: { name: item.sender_name, email: item.sender_email },
+    // After the final email: where the delivered work lives, or a remark.
+    // Either completes the item; until then status is "link_missing".
+    closeout: {
+      required: item.link_required,
+      link: item.delivery_link,
+      remarks: item.delivery_remarks,
+      recorded_on: item.closeout_date,
+    },
     further_process: item.further_process,
     translation_mode: trEd ? "ai" : "manual",
     current_step: stepRef(current),

@@ -76,11 +76,16 @@ interface Props {
   finalEmailDate?: string | null;
   finalEmailDate2?: string | null;
   type?: string | null;
+  /** After the final email, a link / remark is still needed to complete (see Link / Remarks). */
+  linkRequired?: boolean;
   /** Where "Save & Back" returns to (the page the user came from). */
   backHref?: string;
 }
 
-export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEmailDate, finalEmailDate2, type, backHref }: Props) {
+export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEmailDate, finalEmailDate2, type, linkRequired = true, backHref }: Props) {
+  const completesText = linkRequired
+    ? "the item moves to Link / Remarks — add the link or a remark there to complete it."
+    : "the item is Complete — final email sent.";
   const { canWrite } = usePermissions();
   const toast = useToast();
   const router = useRouter();
@@ -350,10 +355,10 @@ export default function EtPipelineEditor({ itemId, stages, peopleNames, finalEma
       {isWsb ? (
         <>
           {editableEmailCard(finalEmail, setFinal, "F. Email Sent for Islamic Brothers", "First final email — sent to the brothers. Then the sisters' phase (PIS, FFM) begins.")}
-          {editableEmailCard(finalEmail2, setFinal2, "F. Email sent for Islamic Sisters", "Second final email — when this date is set, the item is Complete.")}
+          {editableEmailCard(finalEmail2, setFinal2, "F. Email sent for Islamic Sisters", `Second final email — when this date is set, ${completesText}`)}
         </>
       ) : (
-        editableEmailCard(finalEmail, setFinal, "Final email", "When the date is set, the item is Complete — final email sent.")
+        editableEmailCard(finalEmail, setFinal, "Final email", `When the date is set, ${completesText}`)
       )}
 
       {/* Save bar */}

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerSupabase } from "./supabase/server";
 import {
   blankStages,
+  closeoutOf,
   deriveStatus,
   stageSeq,
   type EtItem,
@@ -66,7 +67,8 @@ export async function createEtItem(input: CreateEtItemInput, client?: SupabaseCl
         delivery_date: input.delivery_date,
         final_email_date: input.final_email_date,
         priority: input.priority,
-        status: input.final_email_date ? "completed" : "pending_assignment",
+        // A final email at creation still needs the link / remark to complete.
+        status: input.final_email_date ? "link_missing" : "pending_assignment",
         further_process: input.further_process,
         sender_name: input.sender_name,
         sender_email: input.sender_email,
@@ -158,7 +160,7 @@ export async function saveEtStages(
   // need the item's type to number the stages correctly.
   const { data: itemRow, error: typeErr } = await supabase
     .from("et_items")
-    .select("type")
+    .select("type, link_required, delivery_link, delivery_remarks")
     .eq("id", itemId)
     .single();
   if (typeErr) throw typeErr;
@@ -183,7 +185,7 @@ export async function saveEtStages(
 
   // Recompute status from the just-saved stage data (+ the final email dates).
   const itemUpdate: Record<string, unknown> = {
-    status: deriveStatus(rows as unknown as EtStage[], finalEmailDate ?? null, finalEmailDate2 ?? null),
+    status: deriveStatus(rows as unknown as EtStage[], finalEmailDate ?? null, finalEmailDate2 ?? null, closeoutOf(itemRow)),
   };
   // Only write the final email dates when the caller actually provided them.
   if (finalEmailDate !== undefined) itemUpdate.final_email_date = finalEmailDate || null;
@@ -194,6 +196,55 @@ export async function saveEtStages(
     .update(itemUpdate)
     .eq("id", itemId);
   if (statusError) throw statusError;
+}
+
+export interface EtCloseoutInput {
+  delivery_link: string | null;
+  delivery_remarks: string | null;
+}
+
+/**
+ * Record where the delivered work lives (online / SharePoint link) and/or a
+ * remark. After the final email, either one completes the item; clearing both
+ * sends it back to "Link / remark missing". The status is recomputed.
+ */
+export async function setEtCloseout(itemId: string, input: EtCloseoutInput, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
+  const link = input.delivery_link?.trim() || null;
+  const remarks = input.delivery_remarks?.trim() || null;
+
+  const { data: item, error: itemErr } = await supabase
+    .from("et_items")
+    .select("final_email_date, final_email_date_2, link_required, closeout_date")
+    .eq("id", itemId)
+    .single();
+  if (itemErr) throw itemErr;
+
+  const { data: stages, error: stageErr } = await supabase
+    .from("et_stages")
+    .select("stage, seq, person, sent_date, received_back_date, not_applicable, merged, with_tr")
+    .eq("item_id", itemId);
+  if (stageErr) throw stageErr;
+
+  const done = !!(link || remarks);
+  const status = deriveStatus(
+    (stages || []) as EtStage[],
+    item.final_email_date ?? null,
+    item.final_email_date_2 ?? null,
+    { required: !!item.link_required, done }
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase
+    .from("et_items")
+    .update({
+      delivery_link: link,
+      delivery_remarks: remarks,
+      // Keep the first close-out date when only editing an existing link/remark.
+      closeout_date: done ? item.closeout_date ?? today : null,
+      status,
+    })
+    .eq("id", itemId);
+  if (error) throw error;
 }
 
 /** Add a "return to complete missing part" entry for an item. */
@@ -432,14 +483,15 @@ export async function patchEtStages(
 
   const { data: item } = await supabase
     .from("et_items")
-    .select("final_email_date, final_email_date_2")
+    .select("final_email_date, final_email_date_2, link_required, delivery_link, delivery_remarks")
     .eq("id", itemId)
     .maybeSingle();
 
   const status = deriveStatus(
     (stages || []) as EtStage[],
     item?.final_email_date ?? null,
-    item?.final_email_date_2 ?? null
+    item?.final_email_date_2 ?? null,
+    item ? closeoutOf(item) : null
   );
   const { error: statusError } = await supabase.from("et_items").update({ status }).eq("id", itemId);
   if (statusError) throw statusError;

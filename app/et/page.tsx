@@ -16,6 +16,7 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   STEP_ALERT_DAYS,
+  isInProcessStatus,
 } from "@/lib/et";
 import UnassignedEtTasks from "@/app/dashboard/UnassignedEtTasks";
 
@@ -55,8 +56,9 @@ export default async function EtDashboardPage() {
   }
 
   const live = rows.filter((r) => !r.stopped);
-  const active = live.filter((r) => r.derivedStatus !== "completed");
+  const active = live.filter((r) => isInProcessStatus(r.derivedStatus));
   const completed = live.filter((r) => r.derivedStatus === "completed");
+  const linkMissing = live.filter((r) => r.derivedStatus === "link_missing");
   const unassigned = live.filter((r) => r.derivedStatus === "pending_assignment");
 
   // Unassigned tasks (no person + date yet), grouped by category so it's clear
@@ -125,6 +127,15 @@ export default async function EtDashboardPage() {
             <SummaryCard title="Due ≤ 7 days" value={dueSoon.length} color="amber" index={4}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
           </div>
+
+          {linkMissing.length > 0 && (
+            <Link href="/et/closeout" className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-900/15 px-4 py-3 text-sm text-sky-800 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/25">
+              <span>
+                <span className="font-semibold">{linkMissing.length}</span> sent item{linkMissing.length === 1 ? "" : "s"} need{linkMissing.length === 1 ? "s" : ""} a link or remark to complete.
+              </span>
+              <span className="font-medium">Link / Remarks →</span>
+            </Link>
+          )}
 
           {/* 1. Weekly deliveries — due within 7 days, or held over 4 days */}
           <div className="mt-4 sm:mt-6">

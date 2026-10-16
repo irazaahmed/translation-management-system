@@ -17,6 +17,8 @@ import {
   typeLabel,
   typeShortLabel,
   type ItemCategory,
+  isInProcessStatus,
+  LINK_MISSING_BADGE_CLASSES,
 } from "@/lib/et";
 import type { EtItemRow } from "@/lib/etData";
 
@@ -35,6 +37,8 @@ function statusBadge(status: string): { className: string; label: string } {
       return { className: "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400", label: "Completed" };
     case "pending_assignment":
       return { className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400", label: "Unassigned" };
+    case "link_missing":
+      return { className: LINK_MISSING_BADGE_CLASSES, label: "Link/remark missing" };
     case "in_progress":
     default:
       return { className: "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", label: "In Progress" };
@@ -53,10 +57,9 @@ function StageBadge({ row }: { row: EtItemRow }) {
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${stageBadgeClasses(
-        current.stage,
-        current.completed
-      )}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+        current.linkMissing ? LINK_MISSING_BADGE_CLASSES : stageBadgeClasses(current.stage, current.completed)
+      }`}
     >
       {current.stage ? `${current.stage} · ${current.label}` : current.label}
     </span>
@@ -163,7 +166,7 @@ export default function EtItemsList({ items, initial }: Props) {
       })
       .filter((i) => {
         if (status === "all") return true;
-        if (status === "active") return i.derivedStatus !== "completed";
+        if (status === "active") return isInProcessStatus(i.derivedStatus);
         return i.derivedStatus === status;
       })
       .filter((i) => stage === "all" || i.current.stage === stage)
@@ -204,8 +207,8 @@ export default function EtItemsList({ items, initial }: Props) {
           case "smart":
           default: {
             // Incomplete first, by delivery date (earliest/overdue first); completed last.
-            const aDone = a.derivedStatus === "completed" ? 1 : 0;
-            const bDone = b.derivedStatus === "completed" ? 1 : 0;
+            const aDone = isInProcessStatus(a.derivedStatus) ? 0 : 1;
+            const bDone = isInProcessStatus(b.derivedStatus) ? 0 : 1;
             if (aDone !== bDone) return aDone - bDone;
             const ad = deliveryOf(a);
             const bd = deliveryOf(b);
@@ -277,6 +280,7 @@ export default function EtItemsList({ items, initial }: Props) {
             <option value="active">Active (not completed)</option>
             <option value="in_progress">In Progress</option>
             <option value="pending_assignment">Unassigned</option>
+            <option value="link_missing">Link/remark missing</option>
             <option value="completed">Completed</option>
             <option value="all">All Statuses</option>
           </select>

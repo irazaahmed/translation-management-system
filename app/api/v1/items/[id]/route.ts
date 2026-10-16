@@ -4,7 +4,7 @@ import { UUID_RE, noteError, readJsonObject } from "@/lib/api/common";
 import { auditEt, planItemPatch, revalidateEtAll } from "@/lib/api/etWrite";
 import { itemDetail, loadItemFresh, loadReturnsFresh } from "@/lib/api/items";
 import { getCachedEtItem, getCachedEtReturns } from "@/lib/etData";
-import { deleteEtItem, saveEtStages, setEtStopped, updateEtItem, type StageUpsert } from "@/lib/etMutations";
+import { deleteEtItem, saveEtStages, setEtCloseout, setEtStopped, updateEtItem, type StageUpsert } from "@/lib/etMutations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
     const built = planItemPatch(item, body);
     if ("error" in built) return apiError(built.status ?? 400, built.error, built.details);
-    const { fields, finalEmail, stopped } = built.plan;
+    const { fields, finalEmail, closeout, stopped } = built.plan;
 
     if (Object.keys(fields).length) await updateEtItem(id, fields, admin);
     if (finalEmail) {
@@ -74,6 +74,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
         admin
       );
     }
+    // After the final email (so the status sees the new date): link / remarks.
+    if (closeout) await setEtCloseout(id, closeout, admin);
     if (stopped !== null) await setEtStopped(id, stopped, admin);
 
     revalidateEtAll(id);

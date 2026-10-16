@@ -30,6 +30,7 @@ login accounts or changing roles). Those stay in the admin UI on purpose.
 | New item | `POST /items` | items:write |
 | Edit item (title, type, words, dates, priority, notes, sender) | `PATCH /items/{id}` | items:write |
 | Final email / 2nd final email (wsb) | `PATCH /items/{id}` → `final_email_date`, `final_email_date_2` | items:write |
+| Link / Remarks after the final email | `PATCH /items/{id}` → `delivery_link`, `delivery_remarks` | items:write |
 | Stop / resume project | `PATCH /items/{id}` → `stopped` | items:write |
 | Delete item | `DELETE /items/{id}` | **items:delete** |
 | "Move →" / "Start" | `PATCH /items/{id}/pipeline` → `advance_to` | items:write |
@@ -175,7 +176,7 @@ Lists work items (Quran-e-Pak items are excluded, as in the UI). Scope: `items:r
 | Param | Values | Notes |
 |-------|--------|-------|
 | `category` | `weekly-docs` \| `magazine` \| `books` \| `other` | weekly-docs = wsb, wbl, fsp |
-| `status` | `active` \| `completed` \| `stopped` | active = not completed and not stopped |
+| `status` | `active` \| `link_missing` \| `completed` \| `stopped` | active = still being worked on (not completed, not waiting for its link / remark, not stopped) |
 | `type` | `wsb` `wbl` `fsp` `bks` `dwk` `mgz` `aer` `rpr` | |
 | `holder` | name | exact match (case-insensitive) on the **current** holder |
 | `stage` | stage code, e.g. `ST` | the **current** stage |
@@ -219,7 +220,9 @@ curl -s "https://tms-dawateislami.vercel.app/api/v1/items?category=weekly-docs&s
 }
 ```
 
-- `status` is `pending_assignment` | `in_progress` | `completed`, worked out live from the stages.
+- `status` is `pending_assignment` | `in_progress` | `link_missing` | `completed`, worked out live from the stages.
+  `link_missing` means the final email is sent, but the delivered work's link or a remark hasn't been
+  recorded yet (the **Link / Remarks** tab). Recording either one makes the item `completed`.
 - `current_step` is `null` when nothing is in progress; `current_label` then says why
   (`Pending Assignment`, `Awaiting final email`, `Completed`).
 - `net_word_count`: for `wsb`, the fixed pre-translated sections are subtracted (same as the UI's counts).
@@ -401,13 +404,19 @@ request. Only the fields you send change; `null` clears a field.
 | Field | Values | Same as in the UI |
 |-------|--------|-------------------|
 | `title`, `type`, `received_date`, `delivery_date`, `word_count`, `priority`, `further_process`, `sender_name`, `sender_email` | as in [`POST /items`](#post-apiv1items) | Edit item form. A `null` `delivery_date` is read from a `(dd-mm-yy)` title |
-| `final_email_date` | `YYYY-MM-DD` or `null` | Final email date: setting it completes the item, clearing it reopens it |
-| `final_email_date_2` | `YYYY-MM-DD` or `null` (**wsb only**) | 2nd final email (to the Islamic Sisters), which completes a wsb item |
+| `final_email_date` | `YYYY-MM-DD` or `null` | Final email date. Setting it moves the item to `link_missing` (or `completed` if a link / remark is already recorded). Clearing it reopens the item |
+| `final_email_date_2` | `YYYY-MM-DD` or `null` (**wsb only**) | 2nd final email (to the Islamic Sisters). For wsb this is the email that moves the item to `link_missing` |
+| `delivery_link` | full `http(s)://` address or `null` | Link / Remarks: online or SharePoint link of the delivered work |
+| `delivery_remarks` | text (max 5000) or `null` | Link / Remarks: a remark instead of, or as well as, a link |
 | `stopped` | `true` / `false` | Stop / Resume project |
 | `note` | audit note | |
 
 - Final email dates are saved through `saveEtStages()`, the same as the pipeline editor, so the
   item's stored status is recalculated.
+- After the final email, a `delivery_link` **or** `delivery_remarks` completes the item. Clearing both
+  sends it back to `link_missing`. The item detail shows them under
+  `closeout: { required, link, remarks, recorded_on }`. Items that were already completed before
+  this step existed have `required: false` and stay completed.
 - Changing `type` doesn't add or remove stages, same as the edit form.
 
 ```bash

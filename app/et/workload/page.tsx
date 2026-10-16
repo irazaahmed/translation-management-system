@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemsWithStages, getCachedEtAllReturns, type EtReturnRow } from "@/lib/etData";
-import { activeStages, computeCurrentStep, isTrEdCombined, itemStageName, reminderInfo, returnBadgeLabel, typeShortLabel } from "@/lib/et";
+import { activeStages, computeCurrentStep, isTrEdCombined, itemStageName, reminderInfo, returnBadgeLabel, typeShortLabel, closeoutOf } from "@/lib/et";
 import type { EtItemWithStages } from "@/lib/et";
 import WorkloadBoard, { type WorkloadGroup, type WorkloadItem } from "./WorkloadBoard";
 
@@ -38,9 +38,9 @@ export default async function EtWorkloadPage() {
 
   for (const it of items) {
     if (it.stopped) continue;
-    const current = computeCurrentStep(it.stages, it.final_email_date, it.final_email_date_2);
-    // Active = still in flight (not completed).
-    if (current.completed) continue;
+    const current = computeCurrentStep(it.stages, it.final_email_date, it.final_email_date_2, closeoutOf(it));
+    // Active = still in flight (not completed, not just waiting for its link / remark).
+    if (current.completed || current.linkMissing) continue;
     activeCount++;
 
     const info = reminderInfo(it);

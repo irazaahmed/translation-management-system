@@ -15,6 +15,7 @@ import {
   urgencyClasses,
   HELD_ALERT_DAYS,
   type ReminderInfo,
+  isInProcessStatus,
 } from "@/lib/et";
 import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
@@ -114,7 +115,7 @@ export default async function EtRemindersPage() {
 
   // Weekly documents only (wsb / fsp / wbl) — the recurring deliverables. Every
   // active weekly item is shown, even ones with no confirmed delivery date yet.
-  const weekly = rows.filter((r) => !r.stopped && r.derivedStatus !== "completed" && isWeeklyType(r.type));
+  const weekly = rows.filter((r) => !r.stopped && isInProcessStatus(r.derivedStatus) && isWeeklyType(r.type));
 
   const entries: Entry[] = weekly
     .map((row) => ({ row, info: reminderInfo(row) }))

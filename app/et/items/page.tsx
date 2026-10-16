@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { isInProcessStatus } from "@/lib/et";
 import Link from "next/link";
 import { getCachedEtItemRows } from "@/lib/etData";
 import { StaffOnly } from "@/components/AuthProvider";
@@ -31,8 +32,9 @@ export default async function EtItemsPage({ searchParams }: Props) {
   }
 
   const live = rows.filter((r) => !r.stopped);
-  const active = live.filter((r) => r.derivedStatus !== "completed").length;
+  const active = live.filter((r) => isInProcessStatus(r.derivedStatus)).length;
   const completed = live.filter((r) => r.derivedStatus === "completed").length;
+  const linkMissing = live.filter((r) => r.derivedStatus === "link_missing").length;
   const skipped = rows.filter((r) => r.stopped).length;
 
   return (
@@ -42,7 +44,7 @@ export default async function EtItemsPage({ searchParams }: Props) {
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">English Translation</p>
           <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Work Items</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {live.length} items · {active} active · {completed} completed{skipped > 0 ? ` · ${skipped} skipped` : ""}
+            {live.length} items · {active} active{linkMissing > 0 ? ` · ${linkMissing} link/remark missing` : ""} · {completed} completed{skipped > 0 ? ` · ${skipped} skipped` : ""}
           </p>
         </div>
         <StaffOnly>

@@ -26,6 +26,7 @@ export function revalidateEtAll(itemId?: string) {
     "/et/reminders",
     "/et/workforce",
     "/et/workload",
+    "/et/closeout",
   ]) {
     revalidatePath(p);
   }
@@ -92,6 +93,8 @@ const ITEM_PATCH_KEYS = new Set([
   "sender_email",
   "final_email_date",
   "final_email_date_2",
+  "delivery_link",
+  "delivery_remarks",
   "stopped",
   "note",
 ]);
@@ -101,7 +104,19 @@ export interface ItemPatchPlan {
   fields: UpdateEtItemInput;
   /** Final email dates, saved through saveEtStages() so the status is recomputed. */
   finalEmail: { final_email_date?: string | null; final_email_date_2?: string | null } | null;
+  /** Link / remarks after the final email, saved through setEtCloseout() (completes the item). */
+  closeout: { delivery_link: string | null; delivery_remarks: string | null } | null;
   stopped: boolean | null;
+}
+
+/** A delivery link must be a web address (online or SharePoint). */
+function isWebLink(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function planItemPatch(item: EtItemWithStages, body: Record<string, unknown>): { plan: ItemPatchPlan } | Fail {
@@ -160,6 +175,18 @@ export function planItemPatch(item: EtItemWithStages, body: Record<string, unkno
     if (fe2 !== undefined) finalEmail.final_email_date_2 = fe2;
   }
 
+  // Link / remarks: fields not sent keep their current value.
+  let closeout: ItemPatchPlan["closeout"] = null;
+  const link = optText(body, "delivery_link", 2000, problems);
+  const remarks = optText(body, "delivery_remarks", 5000, problems);
+  if (link && !isWebLink(link)) problems.push("delivery_link must be a full http:// or https:// address.");
+  if (link !== undefined || remarks !== undefined) {
+    closeout = {
+      delivery_link: link !== undefined ? link : item.delivery_link,
+      delivery_remarks: remarks !== undefined ? remarks : item.delivery_remarks,
+    };
+  }
+
   let stopped: boolean | null = null;
   if ("stopped" in body) {
     if (typeof body.stopped === "boolean") stopped = body.stopped;
@@ -167,10 +194,10 @@ export function planItemPatch(item: EtItemWithStages, body: Record<string, unkno
   }
 
   if (problems.length) return { error: "Invalid request.", details: problems };
-  if (Object.keys(fields).length === 0 && !finalEmail && stopped === null) {
+  if (Object.keys(fields).length === 0 && !finalEmail && !closeout && stopped === null) {
     return { error: "Nothing to change." };
   }
-  return { plan: { fields, finalEmail, stopped } };
+  return { plan: { fields, finalEmail, closeout, stopped } };
 }
 
 // ============================================================

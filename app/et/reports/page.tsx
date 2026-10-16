@@ -13,6 +13,7 @@ import {
   stageName,
   typeLabel,
   CATEGORY_LABELS,
+  closeoutOf,
 } from "@/lib/et";
 import ReportBuilder, { type ActivityRow, type ItemReportRow, type ItemStageRow, type ReturnReportRow } from "./ReportBuilder";
 
@@ -62,7 +63,7 @@ export default async function EtReportsPage() {
       if (item.stopped) continue;
       const cat = itemCategory(item.type);
       const typeName = typeLabel(item.type);
-      const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2);
+      const current = computeCurrentStep(item.stages, item.final_email_date, item.final_email_date_2, closeoutOf(item));
       const trEd = isTrEdCombined(item.stages);
 
       // One activity row per touched (non-skipped) stage — who had it & when.
@@ -118,7 +119,13 @@ export default async function EtReportsPage() {
         title: item.title,
         type: typeName,
         category: CATEGORY_LABELS[cat],
-        status: current.completed ? "Completed" : current.unassigned ? "Unassigned" : "In Progress",
+        status: current.completed
+          ? "Completed"
+          : current.linkMissing
+          ? "Link/remark missing"
+          : current.unassigned
+          ? "Unassigned"
+          : "In Progress",
         stageCode: current.stage,
         currentStep: current.stage ? `${current.stage} · ${current.label}` : current.label,
         holder: current.holder ?? "",

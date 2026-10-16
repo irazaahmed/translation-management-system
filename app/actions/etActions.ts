@@ -8,6 +8,7 @@ import {
   updateEtItem,
   deleteEtItem,
   setEtStopped,
+  setEtCloseout,
   setEtItemComment,
   saveEtStages,
   patchEtStages,
@@ -53,6 +54,7 @@ function revalidateEt(itemId?: string) {
   revalidateTag(ET_CACHE_TAG, ET_CACHE_PURGE);
   revalidatePath("/et");
   revalidatePath("/et/items");
+  revalidatePath("/et/closeout");
   if (itemId) revalidatePath(`/et/items/${itemId}`);
 }
 
@@ -277,6 +279,45 @@ export async function setEtStoppedAction(
     return { success: true };
   } catch (error) {
     console.error("Failed to set stopped:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to change this." };
+    }
+    return { error: "Failed to save. Please try again." };
+  }
+}
+
+/** A delivery link must be a web address (online or SharePoint). */
+function isWebLink(v: string): boolean {
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Record the delivered work's link and/or remarks. After the final email,
+ * either one completes the item; clearing both sends it back to
+ * "Link / remark missing".
+ */
+export async function setEtCloseoutAction(
+  itemId: string,
+  link: string,
+  remarks: string
+): Promise<{ error?: string; success?: boolean }> {
+  const l = link.trim();
+  const r = remarks.trim();
+  if (l && !isWebLink(l)) return { error: "The link must be a full web address starting with http:// or https://." };
+  if (l.length > 2000) return { error: "The link is too long (max 2000 characters)." };
+  if (r.length > 5000) return { error: "Remarks are too long (max 5000 characters)." };
+  try {
+    await requireStaff();
+    await setEtCloseout(itemId, { delivery_link: l || null, delivery_remarks: r || null });
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save link / remarks:", error);
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return { error: "You don't have permission to change this." };
     }

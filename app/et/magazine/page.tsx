@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, type EtItemRow } from "@/lib/etData";
-import { daysSince, stagesForType, isMagazineType, RETURN_BADGE_CLASSES, returnBadgeLabel, returnBadgeDetail, stageBadgeClasses, stageChipLabel } from "@/lib/et";
+import { daysSince, stagesForType, isMagazineType, RETURN_BADGE_CLASSES, returnBadgeLabel, returnBadgeDetail, stageBadgeClasses, stageChipLabel, isInProcessStatus } from "@/lib/et";
 import EtQuickAdvance from "../items/[id]/EtQuickAdvance";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +71,7 @@ export default async function EtMagazinePage() {
   // In-process only — completed (incl. final email sent) & stopped are hidden,
   // same as Books and Weekly Documents.
   const articles = rows
-    .filter((r) => isMagazineType(r.type) && !r.stopped && r.derivedStatus !== "completed")
+    .filter((r) => isMagazineType(r.type) && !r.stopped && isInProcessStatus(r.derivedStatus))
     .sort((a, b) => a.title.localeCompare(b.title));
 
   return (

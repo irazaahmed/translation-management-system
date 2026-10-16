@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { getCachedEtItemRows, getCachedEtPeople, getCachedEtAssignments, type EtItemRow } from "@/lib/etData";
-import { typeShortLabel, type EtAssignment } from "@/lib/et";
+import { typeShortLabel, type EtAssignment, isInProcessStatus } from "@/lib/et";
 import WorkforceManager, { type PlannerItem } from "./WorkforceManager";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function EtWorkforcePage() {
   // Active workload per holder (match on the name as stored in stages).
   const load = new Map<string, number>();
   rows
-    .filter((r) => r.derivedStatus !== "completed" && !r.stopped)
+    .filter((r) => isInProcessStatus(r.derivedStatus) && !r.stopped)
     .forEach((r) => {
       if (r.current.holder) load.set(r.current.holder, (load.get(r.current.holder) || 0) + 1);
     });
