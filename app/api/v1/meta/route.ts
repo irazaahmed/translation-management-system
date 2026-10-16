@@ -25,6 +25,14 @@ export async function GET(request: Request) {
         pipeline: stagesForType(code).map((s) => s.code),
       })),
       categories: Object.entries(CATEGORY_SLUGS).map(([slug, cat]) => ({ slug, label: CATEGORY_LABELS[cat] })),
+      statuses: [
+        { code: "pending_assignment", label: "Unassigned" },
+        { code: "in_progress", label: "In Progress" },
+        { code: "link_missing", label: "Link / remark missing — final email sent; PATCH delivery_link or delivery_remarks to complete" },
+        { code: "completed", label: "Completed" },
+      ],
+      // POST /items translation_mode. "ai" (default): ED is combined into TR (ED has with_tr: true).
+      translation_modes: ["ai", "manual"],
       holders: people.map((p) => ({ name: p.name, active: p.active })),
     });
   } catch (err) {

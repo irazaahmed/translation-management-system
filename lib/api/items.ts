@@ -145,6 +145,15 @@ export function listItem(row: EtItem & {
     in_return: row.inReturn
       ? { stage: row.returnStage, holder: row.returnPerson, since: row.returnSentDate }
       : null,
+    final_email_date: row.final_email_date,
+    final_email_date_2: isWsbType(row.type) ? row.final_email_date_2 : undefined,
+    // Link / Remarks after the final email (status "link_missing" until one is recorded).
+    closeout: {
+      required: row.link_required,
+      link: row.delivery_link,
+      remarks: row.delivery_remarks,
+      recorded_on: row.closeout_date,
+    },
   };
 }
 
@@ -335,7 +344,8 @@ export function buildPipelinePatches(
     if (!advance) {
       return {
         status: 409,
-        error: "Nothing to advance — the item is completed or only awaiting its final email.",
+        error:
+          "Nothing to advance — the item is completed, only awaiting its final email, or waiting for its link / remark (PATCH /items/{id} with delivery_link or delivery_remarks).",
       };
     }
     const expected = nextAction(advance)!;

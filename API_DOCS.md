@@ -27,7 +27,7 @@ login accounts or changing roles). Those stay in the admin UI on purpose.
 | Stages, types, holders | `GET /meta` | items:read |
 | Items list / search | `GET /items` | items:read |
 | Item page | `GET /items/{id}` | items:read |
-| New item | `POST /items` | items:write |
+| New item (incl. AI / Manual translation) | `POST /items` → `translation_mode` | items:write |
 | Edit item (title, type, words, dates, priority, notes, sender) | `PATCH /items/{id}` | items:write |
 | Final email / 2nd final email (wsb) | `PATCH /items/{id}` → `final_email_date`, `final_email_date_2` | items:write |
 | Link / Remarks after the final email | `PATCH /items/{id}` → `delivery_link`, `delivery_remarks` | items:write |
@@ -35,6 +35,8 @@ login accounts or changing roles). Those stay in the admin UI on purpose.
 | Delete item | `DELETE /items/{id}` | **items:delete** |
 | "Move →" / "Start" | `PATCH /items/{id}/pipeline` → `advance_to` | items:write |
 | Pipeline editor (holders, dates, N/A, Merged) | `PATCH /items/{id}/pipeline` → `stages` | items:write |
+| TR card "AI · TR+ED / Manual" toggle | `PATCH /items/{id}/pipeline` → `stages: [{ "code": "ED", "with_tr": true \| false }]` | items:write |
+| Link / Remarks tab (sent items waiting for a link / remark) | `GET /items?status=link_missing` | items:read |
 | Returns of an item | `GET /items/{id}/returns` | items:read |
 | All returns (open / completed) | `GET /returns` | items:read |
 | Add return | `POST /items/{id}/returns` | items:write |
