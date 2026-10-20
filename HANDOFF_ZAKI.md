@@ -94,3 +94,23 @@ API key ka plaintext sirf terminal me ek baar dikhaya gaya tha — ye kahin save
 
 Production tests (2026-10-09): **48/48** passed for the new endpoints, and the earlier suites
 still pass (English 30/30, Quranic 41/41). Only dummy records were used and all were deleted.
+
+## Update 2026-10-20 — Link / Remarks fix + OpenAPI spec (commit `5a8dfd8`)
+
+**Why Zaki couldn't add the final link:** the item detail returns the close-out as
+`closeout.link` / `closeout.remarks`, but the write only accepted `delivery_link` /
+`delivery_remarks`. Echoing the GET names (or a link without `https://`) got a `400`, and
+nothing was written. The audit log had no close-out write from Zaki at all.
+
+Fixed:
+- `PATCH /items/{id}/closeout` is now a dedicated Link / Remarks endpoint. `PATCH /items/{id}`
+  still works too.
+- Both accept `delivery_link` / `link` / `closeout.link`, and `delivery_remarks` / `remarks` /
+  `closeout.remarks`. A bare domain gets `https://` added.
+- GET responses include top-level `delivery_link` / `delivery_remarks`.
+- Every write answers an unknown field with "did you mean …?" and the list of allowed fields.
+- **`GET /api/v1/openapi.json`** is a public OpenAPI 3.1 spec with exact field names, enums and
+  required scopes. Muse should build the connector from it.
+
+Production tests (2026-10-20): close-out 21/21, full 48/48, English 30/30, Quranic 41/41.
+Dummy data only, all cleaned up.
