@@ -28,7 +28,7 @@ import {
   type StageCode,
 } from "@/lib/et";
 import type { CreateEtItemInput, StagePatch } from "@/lib/etMutations";
-import { isIsoDate, todayPk } from "./common";
+import { isIsoDate, todayPk, unknownFieldsMessage } from "./common";
 
 export { UUID_RE, isIsoDate, todayPk } from "./common";
 
@@ -148,11 +148,16 @@ export function listItem(row: EtItem & {
     final_email_date: row.final_email_date,
     final_email_date_2: isWsbType(row.type) ? row.final_email_date_2 : undefined,
     // Link / Remarks after the final email (status "link_missing" until one is recorded).
+    // Same names as the write fields (PATCH /items/{id}/closeout or /items/{id}).
+    delivery_link: row.delivery_link,
+    delivery_remarks: row.delivery_remarks,
     closeout: {
       required: row.link_required,
       link: row.delivery_link,
       remarks: row.delivery_remarks,
       recorded_on: row.closeout_date,
+      done: !!(row.delivery_link || row.delivery_remarks),
+      how_to_set: "PATCH /api/v1/items/{id}/closeout { \"delivery_link\": \"https://…\" } or { \"delivery_remarks\": \"…\" }",
     },
   };
 }
@@ -216,11 +221,16 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
     sender: { name: item.sender_name, email: item.sender_email },
     // After the final email: where the delivered work lives, or a remark.
     // Either completes the item; until then status is "link_missing".
+    // Same names as the write fields (PATCH /items/{id}/closeout or /items/{id}).
+    delivery_link: item.delivery_link,
+    delivery_remarks: item.delivery_remarks,
     closeout: {
       required: item.link_required,
       link: item.delivery_link,
       remarks: item.delivery_remarks,
       recorded_on: item.closeout_date,
+      done: !!(item.delivery_link || item.delivery_remarks),
+      how_to_set: "PATCH /api/v1/items/{id}/closeout { \"delivery_link\": \"https://…\" } or { \"delivery_remarks\": \"…\" }",
     },
     further_process: item.further_process,
     translation_mode: trEd ? "ai" : "manual",
@@ -451,7 +461,7 @@ export function parseCreateItem(
 ): { input: CreateEtItemInput } | { error: string; details?: unknown } {
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !CREATE_KEYS.has(k));
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, CREATE_KEYS));
 
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (!title) problems.push("title is required.");

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError, requireApiKey } from "@/lib/api/auth";
-import { UUID_RE, noteError, readJsonObject } from "@/lib/api/common";
+import { UUID_RE, noteError, readJsonObject, unknownFieldsMessage } from "@/lib/api/common";
 import { auditEt, revalidateEtAll } from "@/lib/api/etWrite";
 import { getCachedEtAssignments, getCachedEtPeople } from "@/lib/etData";
 import { addEtAssignment } from "@/lib/etMutations";
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   if (badNote) return apiError(400, badNote.replace('"note"', '"api_note"'));
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !["person_id", "item_id", "note", "api_note"].includes(k));
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, ["person_id", "item_id", "note", "api_note"]));
   if (typeof body.person_id !== "string" || !UUID_RE.test(body.person_id)) problems.push("person_id (UUID) is required.");
   if (typeof body.item_id !== "string" || !UUID_RE.test(body.item_id)) problems.push("item_id (UUID) is required.");
   if (body.note !== undefined && body.note !== null && (typeof body.note !== "string" || body.note.length > 1000)) {

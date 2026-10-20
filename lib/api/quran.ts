@@ -19,7 +19,7 @@ import {
 import { WEEKDAYS, computeScheduleStatus, nextOccurrenceOf, type Weekday } from "@/lib/schedule";
 import type { ParaStageRowInput } from "@/lib/paraProgressMutations";
 import type { CreateLanguageInput, Language, Meeting, UpdateLanguageInput } from "@/lib/supabase";
-import { isIsoDate, todayPk } from "./common";
+import { isIsoDate, todayPk, unknownFieldsMessage } from "./common";
 
 /**
  * Shared shaping/validation for the Quranic part of the REST API
@@ -353,10 +353,7 @@ export function planLanguagePatch(
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !LANGUAGE_PATCH_KEYS.has(k));
   if (unknown.length) {
-    return {
-      error: "Unknown field(s).",
-      details: [`Unknown: ${unknown.join(", ")}. Allowed: ${[...LANGUAGE_PATCH_KEYS].join(", ")}.`],
-    };
+    return { error: "Unknown field(s).", details: [unknownFieldsMessage(unknown, LANGUAGE_PATCH_KEYS)] };
   }
 
   // ---- meta ----
@@ -562,7 +559,7 @@ export function parseMeetingFields(
 ): { fields: MeetingFields } | { error: string; details?: unknown } {
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !MEETING_KEYS.has(k) || (!creating && k === "language_id"));
-  if (unknown.length) problems.push(`Unknown or read-only field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(creating ? unknownFieldsMessage(unknown, MEETING_KEYS) : unknownFieldsMessage(unknown, [...MEETING_KEYS].filter((k) => k !== "language_id")));
 
   const fields: MeetingFields = {};
   if ("meeting_date" in body || creating) {
@@ -621,7 +618,7 @@ export function parseNewLanguage(
 ): { input: CreateLanguageInput } | { error: string; details?: unknown } {
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !NEW_LANGUAGE_KEYS.has(k));
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, NEW_LANGUAGE_KEYS));
   const str = (k: string, max: number) => (typeof body[k] === "string" && (body[k] as string).trim() && (body[k] as string).trim().length <= max ? (body[k] as string).trim() : null);
 
   const language = str("language", 100);
@@ -673,7 +670,7 @@ export function parseQuranPerson(
 ): { input: { name: string; active: boolean; notes: string | null } } | { error: string; details?: unknown } {
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !["name", "active", "notes", "note"].includes(k));
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}. (Use "notes" for the person's notes, "note" for the audit note.)`);
+  if (unknown.length) problems.push(`${unknownFieldsMessage(unknown, ["name", "active", "notes", "note"])} ("notes" = the person's notes, "note" = audit note.)`);
   const out = current ? { ...current } : { name: "", active: true, notes: null as string | null };
   if ("name" in body || !current) {
     const n = typeof body.name === "string" ? body.name.trim() : "";

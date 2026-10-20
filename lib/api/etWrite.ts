@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { ET_CACHE_TAG, TYPE_LABELS, isWsbType, parseTitleDate, type EtItemWithStages, type StageCode } from "@/lib/et";
 import type { AddEtReturnInput, EtPersonInput, UpdateEtItemInput } from "@/lib/etMutations";
-import { isIsoDate } from "./common";
+import { applyAliases, isIsoDate, normalizeWebLink, unknownFieldsMessage } from "./common";
 import { isStageCode, resolveHolder } from "./items";
 
 /**
@@ -119,10 +119,44 @@ function isWebLink(v: string): boolean {
   }
 }
 
-export function planItemPatch(item: EtItemWithStages, body: Record<string, unknown>): { plan: ItemPatchPlan } | Fail {
+/** Names clients use for the Link / Remarks fields (incl. the GET shape `closeout.link`). */
+const CLOSEOUT_ALIASES: Record<string, string> = {
+  link: "delivery_link",
+  final_link: "delivery_link",
+  delivery_url: "delivery_link",
+  url: "delivery_link",
+  remarks: "delivery_remarks",
+  remark: "delivery_remarks",
+  delivery_remark: "delivery_remarks",
+  final_remarks: "delivery_remarks",
+};
+
+/**
+ * Accept the Link / Remarks in every shape a client is likely to send:
+ * { delivery_link }, { link }, or the GET response's { closeout: { link, remarks } }.
+ */
+export function normalizeCloseoutBody(input: Record<string, unknown>): Record<string, unknown> {
+  const body = { ...input };
+  const nested = body.closeout;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    delete body.closeout;
+    const c = applyAliases(nested as Record<string, unknown>, CLOSEOUT_ALIASES);
+    for (const [k, v] of Object.entries(c)) {
+      if (k === "delivery_link" || k === "delivery_remarks") {
+        if (!(k in body)) body[k] = v;
+      } else if (k !== "required" && k !== "recorded_on") {
+        body[`closeout.${k}`] = v; // flagged as unknown below
+      }
+    }
+  }
+  return applyAliases(body, CLOSEOUT_ALIASES);
+}
+
+export function planItemPatch(item: EtItemWithStages, rawBody: Record<string, unknown>): { plan: ItemPatchPlan } | Fail {
+  const body = normalizeCloseoutBody(rawBody);
   const problems: string[] = [];
   const unknown = unknownKeys(body, ITEM_PATCH_KEYS);
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, ITEM_PATCH_KEYS));
   const fields: UpdateEtItemInput = {};
 
   if ("title" in body) {
@@ -177,9 +211,12 @@ export function planItemPatch(item: EtItemWithStages, body: Record<string, unkno
 
   // Link / remarks: fields not sent keep their current value.
   let closeout: ItemPatchPlan["closeout"] = null;
-  const link = optText(body, "delivery_link", 2000, problems);
+  const rawLink = optText(body, "delivery_link", 2000, problems);
+  const link = rawLink ? normalizeWebLink(rawLink) : rawLink;
   const remarks = optText(body, "delivery_remarks", 5000, problems);
-  if (link && !isWebLink(link)) problems.push("delivery_link must be a full http:// or https:// address.");
+  if (link && !isWebLink(link)) {
+    problems.push(`delivery_link "${rawLink}" is not a web address. Send a full link such as "https://dawateislami.sharepoint.com/…", or put a text note in delivery_remarks instead.`);
+  }
   if (link !== undefined || remarks !== undefined) {
     closeout = {
       delivery_link: link !== undefined ? link : item.delivery_link,
@@ -219,7 +256,7 @@ export function parseReturn(
 ): { input: Partial<AddEtReturnInput> } | Fail {
   const problems: string[] = [];
   const unknown = unknownKeys(body, RETURN_KEYS);
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}. (Use "api_note" for the audit note.)`);
+  if (unknown.length) problems.push(`${unknownFieldsMessage(unknown, RETURN_KEYS)} ("note" is the return text; "api_note" is the audit note.)`);
   const input: Partial<AddEtReturnInput> = {};
 
   if ("stage" in body) {
@@ -271,7 +308,7 @@ export function parsePerson(
 ): { input: EtPersonInput } | Fail {
   const problems: string[] = [];
   const unknown = unknownKeys(body, PERSON_KEYS);
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, PERSON_KEYS));
   const out: EtPersonInput = current
     ? { ...current }
     : { name: "", skills: null, email: null, working_hours: null, active: true };

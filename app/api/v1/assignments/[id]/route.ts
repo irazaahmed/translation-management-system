@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError, requireApiKey } from "@/lib/api/auth";
-import { UUID_RE, noteError, readJsonObject } from "@/lib/api/common";
+import { UUID_RE, noteError, readJsonObject, unknownFieldsMessage } from "@/lib/api/common";
 import { auditEt, revalidateEtAll } from "@/lib/api/etWrite";
 import { deleteEtAssignment, updateEtAssignment } from "@/lib/etMutations";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -24,7 +24,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   const problems: string[] = [];
   const unknown = Object.keys(body).filter((k) => !["note", "done", "api_note"].includes(k));
-  if (unknown.length) problems.push(`Unknown field(s): ${unknown.join(", ")}.`);
+  if (unknown.length) problems.push(unknownFieldsMessage(unknown, ["note", "done", "api_note"]));
   const patch: { note?: string | null; done?: boolean } = {};
   if ("note" in body) {
     if (body.note === null || (typeof body.note === "string" && body.note.length <= 1000)) patch.note = body.note as string | null;

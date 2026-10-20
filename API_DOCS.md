@@ -13,7 +13,12 @@ uses (`lib/etMutations.ts`, `lib/mutations.ts`, `lib/paraProgressMutations.ts`),
 rules (`lib/et.ts`, `lib/progress.ts`, `lib/schedule.ts`).
 
 - **Base URL:** `https://tms-dawateislami.vercel.app/api/v1`
+- **OpenAPI spec:** `https://tms-dawateislami.vercel.app/api/v1/openapi.json` (public, no key).
+  It lists every endpoint with its exact field names, types, enums and required scope. Build
+  API clients and agent tools from it, not from guesses.
 - **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`.
+- **Field names:** an unknown field gets a `400` with a *did you mean …?* hint and the full list
+  of allowed fields.
 - **CORS:** none — the API is meant for server-to-server calls, not browsers.
 
 ## All endpoints
@@ -30,7 +35,7 @@ login accounts or changing roles). Those stay in the admin UI on purpose.
 | New item (incl. AI / Manual translation) | `POST /items` → `translation_mode` | items:write |
 | Edit item (title, type, words, dates, priority, notes, sender) | `PATCH /items/{id}` | items:write |
 | Final email / 2nd final email (wsb) | `PATCH /items/{id}` → `final_email_date`, `final_email_date_2` | items:write |
-| Link / Remarks after the final email | `PATCH /items/{id}` → `delivery_link`, `delivery_remarks` | items:write |
+| Link / Remarks after the final email | `PATCH /items/{id}/closeout` (or `PATCH /items/{id}`) → `delivery_link`, `delivery_remarks` | items:write |
 | Stop / resume project | `PATCH /items/{id}` → `stopped` | items:write |
 | Delete item | `DELETE /items/{id}` | **items:delete** |
 | "Move →" / "Start" | `PATCH /items/{id}/pipeline` → `advance_to` | items:write |
@@ -416,10 +421,44 @@ request. Only the fields you send change; `null` clears a field.
 - Final email dates are saved through `saveEtStages()`, the same as the pipeline editor, so the
   item's stored status is recalculated.
 - After the final email, a `delivery_link` **or** `delivery_remarks` completes the item. Clearing both
-  sends it back to `link_missing`. The item detail shows them under
-  `closeout: { required, link, remarks, recorded_on }`. Items that were already completed before
-  this step existed have `required: false` and stay completed.
+  sends it back to `link_missing`. The item detail and list rows show them as top-level
+  `delivery_link` / `delivery_remarks`, and under
+  `closeout: { required, link, remarks, recorded_on, done }`. Items that were already completed
+  before this step existed have `required: false` and stay completed.
 - Changing `type` doesn't add or remove stages, same as the edit form.
+
+## `PATCH /api/v1/items/{id}/closeout` (Link / Remarks)
+
+Scope `items:write`. This is the item page's **Link / Remarks** card. It records where the
+delivered work lives (an online or SharePoint link) and/or a remark, through `setEtCloseout()`,
+the same function as the UI.
+
+- After the final email (wsb: after the 2nd final email), **either one completes the item**.
+  Sending `null` for both sends it back to `link_missing`.
+- Only the fields you send change.
+- Field names are forgiving. All of these work:
+  - `{ "delivery_link": "…" }`
+  - `{ "link": "…" }`
+  - `{ "closeout": { "link": "…" } }`, which is the shape `GET` returns
+  - remarks: `delivery_remarks`, `remarks` or `remark`
+- A bare domain such as `dawateislami.sharepoint.com/sites/…` gets `https://` added. Text that
+  isn't a link gets a `400` that points you to `delivery_remarks`.
+- If the final email isn't recorded yet, the link is still saved. The response's `hint` says the
+  item isn't complete yet, and it completes as soon as the final email date is set.
+
+```bash
+curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/closeout" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "delivery_link": "https://dawateislami.sharepoint.com/sites/ET/Shared Documents/file.docx", "note": "Final link added" }'
+```
+
+```json
+{ "ok": true, "status": "completed",
+  "closeout": { "required": true, "link": "https://…", "remarks": null, "recorded_on": "2026-10-20", "done": true },
+  "currently_at": "Completed — final email sent.", "item": { "…": "same shape as GET /items/{id}" } }
+```
+
+To find the items waiting for a link or remark, use `GET /items?status=link_missing`.
 
 ```bash
 curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID" \
