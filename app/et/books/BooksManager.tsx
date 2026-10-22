@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { usePermissions } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
-import { saveEtItemCommentAction } from "@/app/actions/etActions";
+import { addEtItemNoteAction, deleteEtItemNoteAction } from "@/app/actions/etActions";
 import { BKS_STAGES, RETURN_BADGE_CLASSES, returnBadgeLabel, returnBadgeDetail, stageBadgeClasses, stageChipLabel, type StageCode } from "@/lib/et";
 
 export interface BookRow {
@@ -23,7 +24,26 @@ export interface BookRow {
   holder: string | null;
   doneCount: number;
   totalCount: number;
+  /** Latest comment (et_items.further_process). */
   comment: string;
+  /** Full comment / note history, newest first. */
+  notes: BookNote[];
+}
+
+export interface BookNote {
+  id: string;
+  body: string;
+  /** YYYY-MM-DD */
+  date: string;
+  by: string | null;
+}
+
+/** Notes shown before "Show all". */
+const NOTES_PREVIEW = 3;
+
+/** Today as YYYY-MM-DD in the viewer's own time zone. */
+function todayLocal(): string {
+  return new Date().toLocaleDateString("en-CA");
 }
 
 function fmt(d: string | null): string {
@@ -33,17 +53,78 @@ function fmt(d: string | null): string {
   return dt.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function NoteEntry({ note, bookId, canWrite }: { note: BookNote; bookId: string; canWrite: boolean }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const remove = () => {
+    startTransition(async () => {
+      const res = await deleteEtItemNoteAction(bookId, note.id);
+      if (res.error) toast({ type: "error", message: res.error });
+      else {
+        toast({ type: "success", message: "Note deleted." });
+        router.refresh();
+      }
+      setConfirming(false);
+    });
+  };
+
+  return (
+    <li className="border-l-2 border-emerald-200 dark:border-emerald-800 pl-3">
+      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-gray-500 dark:text-gray-400">
+        <span className="font-semibold text-gray-700 dark:text-gray-300">{fmt(note.date)}</span>
+        {note.by && <span>· {note.by}</span>}
+        {canWrite && (
+          <span className="ml-auto">
+            {confirming ? (
+              <>
+                <span className="mr-1">Delete this note?</span>
+                <button type="button" onClick={remove} disabled={isPending} className="font-medium text-red-600 hover:underline disabled:opacity-50">
+                  {isPending ? "Deleting…" : "Yes"}
+                </button>
+                <span className="mx-1">/</span>
+                <button type="button" onClick={() => setConfirming(false)} className="font-medium hover:underline">
+                  No
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirming(true)} className="hover:text-red-600 hover:underline">
+                Delete
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+      <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-200">{note.body}</p>
+    </li>
+  );
+}
+
 function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
   const toast = useToast();
-  const [comment, setComment] = useState(book.comment);
+  const router = useRouter();
+  const [draft, setDraft] = useState("");
+  const [date, setDate] = useState(todayLocal);
+  const [showAll, setShowAll] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const dirty = comment !== book.comment;
 
-  const save = () => {
+  // Before migration 014 there is no history yet: show the single saved comment.
+  const notes: BookNote[] =
+    book.notes.length > 0 || !book.comment ? book.notes : [{ id: "legacy", body: book.comment, date: "", by: null }];
+  const visible = showAll ? notes : notes.slice(0, NOTES_PREVIEW);
+
+  const add = () => {
     startTransition(async () => {
-      const res = await saveEtItemCommentAction(book.id, comment);
+      const res = await addEtItemNoteAction(book.id, draft, date || null);
       if (res.error) toast({ type: "error", message: res.error });
-      else toast({ type: "success", message: "Comment saved." });
+      else {
+        toast({ type: "success", message: "Note added." });
+        setDraft("");
+        setDate(todayLocal());
+        router.refresh();
+      }
     });
   };
 
@@ -81,32 +162,66 @@ function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
         </div>
       </div>
 
-      {/* Comment */}
+      {/* Comments / notes: every note is kept with its date; new ones go on top. */}
       <div className="mt-3">
-        <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Comment / note</label>
-        {canWrite ? (
-          <>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          Comments / notes{notes.length > 0 && <span className="ml-1 text-gray-400">({notes.length})</span>}
+        </p>
+
+        {canWrite && (
+          <div className="mt-1">
             <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
               rows={2}
-              placeholder="e.g. give this book to ___ only after ___ is done"
-              className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              placeholder="Add a new comment… (earlier comments stay below)"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
-            <div className="mt-1 flex items-center justify-end gap-2">
-              {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Unsaved</span>}
+            <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+              <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                Date
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </label>
               <button
                 type="button"
-                onClick={save}
-                disabled={isPending || !dirty}
+                onClick={add}
+                disabled={isPending || !draft.trim()}
                 className="btn-press inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                {isPending ? "Saving…" : "Save comment"}
+                {isPending ? "Saving…" : "Add note"}
               </button>
             </div>
-          </>
-        ) : (
-          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{book.comment || "—"}</p>
+          </div>
+        )}
+
+        {notes.length === 0
+          ? !canWrite && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">—</p>
+          : (
+            <ul className="mt-2 space-y-2">
+              {visible.map((n) =>
+                n.id === "legacy" ? (
+                  <li key={n.id} className="border-l-2 border-emerald-200 dark:border-emerald-800 pl-3">
+                    <p className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-200">{n.body}</p>
+                  </li>
+                ) : (
+                  <NoteEntry key={n.id} note={n} bookId={book.id} canWrite={canWrite} />
+                )
+              )}
+            </ul>
+          )}
+        {notes.length > NOTES_PREVIEW && (
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="mt-2 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            {showAll ? "Show fewer" : `Show all ${notes.length} notes`}
+          </button>
         )}
       </div>
     </div>
@@ -156,7 +271,16 @@ export default function BooksManager({ books }: { books: BookRow[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const rows = books.filter((b) => {
-      if (q && !(b.title.toLowerCase().includes(q) || (b.holder || "").toLowerCase().includes(q) || b.comment.toLowerCase().includes(q))) return false;
+      if (
+        q &&
+        !(
+          b.title.toLowerCase().includes(q) ||
+          (b.holder || "").toLowerCase().includes(q) ||
+          b.comment.toLowerCase().includes(q) ||
+          b.notes.some((n) => n.body.toLowerCase().includes(q))
+        )
+      )
+        return false;
       if (stage !== "all") {
         // Match any stage the book is actively at (an item can be at two at once),
         // falling back to its current stage when nothing is actively held.
@@ -202,7 +326,7 @@ export default function BooksManager({ books }: { books: BookRow[] }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search books, holder, comment…"
+            placeholder="Search books, holder, comments…"
             className={`${SELECT_CLS} w-full pl-9`}
           />
         </div>

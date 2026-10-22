@@ -1,6 +1,6 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
-import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
+import { getCachedEtItemNotesByItem, getCachedEtItemRows, type EtItemNoteRow, type EtItemRow } from "@/lib/etData";
 import { itemCategory, reminderInfo, isInProcessStatus } from "@/lib/et";
 import BooksManager, { type BookRow } from "./BooksManager";
 
@@ -38,9 +38,10 @@ function orderIndex(title: string): number {
 
 export default async function EtBooksPage() {
   let rows: EtItemRow[] = [];
+  let notesByItem = new Map<string, EtItemNoteRow[]>();
   let error: string | null = null;
   try {
-    rows = await getCachedEtItemRows();
+    [rows, notesByItem] = await Promise.all([getCachedEtItemRows(), getCachedEtItemNotesByItem()]);
   } catch (err) {
     console.error("Failed to fetch ET items:", err);
     error = "Failed to load. Have you run the migration and import yet?";
@@ -73,6 +74,12 @@ export default async function EtBooksPage() {
       doneCount: r.current.doneCount,
       totalCount: r.current.totalCount,
       comment: r.further_process ?? "",
+      notes: (notesByItem.get(r.id) ?? []).map((n) => ({
+        id: n.id,
+        body: n.body,
+        date: n.note_date,
+        by: n.created_by,
+      })),
     }));
 
   return (

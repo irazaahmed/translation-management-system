@@ -42,6 +42,9 @@ login accounts or changing roles). Those stay in the admin UI on purpose.
 | Pipeline editor (holders, dates, N/A, Merged) | `PATCH /items/{id}/pipeline` → `stages` | items:write |
 | TR card "AI · TR+ED / Manual" toggle | `PATCH /items/{id}/pipeline` → `stages: [{ "code": "ED", "with_tr": true \| false }]` | items:write |
 | Link / Remarks tab (sent items waiting for a link / remark) | `GET /items?status=link_missing` | items:read |
+| Comment / note history (Books card) | `GET /items/{id}/notes` | items:read |
+| Add comment / note (old ones are kept) | `POST /items/{id}/notes` | items:write |
+| Delete a note | `DELETE /items/{id}/notes/{noteId}` | **items:delete** |
 | Returns of an item | `GET /items/{id}/returns` | items:read |
 | All returns (open / completed) | `GET /returns` | items:read |
 | Add return | `POST /items/{id}/returns` | items:write |
@@ -472,6 +475,30 @@ Returns `{ "ok": true, "note": …, "currently_at": "Completed — final email s
 
 Scope **`items:delete`**. Deletes the item and its stages. This can't be undone. Optional
 `?note=` for the audit log. Returns `{ "ok": true, "deleted": { "id", "title" } }`.
+
+## Comments / notes (`/items/{id}/notes`)
+
+Every comment or note on an item is kept with its date and author. The **Books** card shows the
+full history, newest first. A new comment never overwrites an old one.
+`further_process` on the item is always the **latest** note.
+
+| Endpoint | Scope | What it does |
+|----------|-------|--------------|
+| `GET /items/{id}/notes` | items:read | `{ latest, total, notes: [{ id, body, date, by, created_at }] }`, newest first |
+| `POST /items/{id}/notes` | items:write | Add a note: `{ "body": "…", "date"?: "YYYY-MM-DD" }`. `date` defaults to today; `text` and `comment` are accepted for `body`; `api_note` is the audit note. Returns `201` with the full history |
+| `DELETE /items/{id}/notes/{noteId}` | **items:delete** | Remove a note added by mistake. The latest comment falls back to the newest remaining note |
+
+- `GET /items/{id}` also includes the `notes` array.
+- Changing `further_process` through `PATCH /items/{id}`, `POST /items` or the edit form also adds
+  the new text to the history. Use `POST /items/{id}/notes` to add a comment.
+- Notes from the API are recorded with `by: "API · <key name>"`. Comments that existed before the
+  history was added show as `by: "Earlier comment"`, dated with the item's last update.
+
+```bash
+curl -s -X POST "https://tms-dawateislami.vercel.app/api/v1/items/$ITEM_ID/notes" \
+  -H "Authorization: Bearer $TMS_API_KEY" -H "Content-Type: application/json" \
+  -d '{ "body": "Give this book to Rafique Attari only after FO is done" }'
+```
 
 ## Returns ("sent back to complete a missing part")
 

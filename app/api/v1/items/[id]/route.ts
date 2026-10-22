@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { apiError, requireApiKey } from "@/lib/api/auth";
 import { UUID_RE, noteError, readJsonObject } from "@/lib/api/common";
 import { auditEt, planItemPatch, revalidateEtAll } from "@/lib/api/etWrite";
-import { itemDetail, loadItemFresh, loadReturnsFresh } from "@/lib/api/items";
-import { getCachedEtItem, getCachedEtReturns } from "@/lib/etData";
+import { itemDetail, loadItemFresh, loadNotesFresh, loadReturnsFresh } from "@/lib/api/items";
+import { getCachedEtItem, getCachedEtItemNotesByItem, getCachedEtReturns } from "@/lib/etData";
 import { deleteEtItem, saveEtStages, setEtCloseout, setEtStopped, updateEtItem, type StageUpsert } from "@/lib/etMutations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -20,9 +20,9 @@ export async function GET(request: Request, { params }: Ctx) {
   if (!UUID_RE.test(id)) return apiError(400, "Item id must be a UUID.");
 
   try {
-    const [item, returns] = await Promise.all([getCachedEtItem(id), getCachedEtReturns(id)]);
+    const [item, returns, notes] = await Promise.all([getCachedEtItem(id), getCachedEtReturns(id), getCachedEtItemNotesByItem()]);
     if (!item) return apiError(404, "Item not found.");
-    return NextResponse.json(itemDetail(item, returns));
+    return NextResponse.json(itemDetail(item, returns, notes.get(id) ?? []));
   } catch (err) {
     console.error("GET /api/v1/items/[id] failed:", err);
     return apiError(500, "Failed to load item.");
@@ -55,7 +55,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if ("error" in built) return apiError(built.status ?? 400, built.error, built.details);
     const { fields, finalEmail, closeout, stopped } = built.plan;
 
-    if (Object.keys(fields).length) await updateEtItem(id, fields, admin);
+    // A changed further_process is also added to the item's note history.
+    if (Object.keys(fields).length) await updateEtItem(id, fields, admin, `API · ${auth.key.name}`);
     if (finalEmail) {
       const rows: StageUpsert[] = item.stages.map((s) => ({
         stage: s.stage,
@@ -87,8 +88,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
       note,
     });
 
-    const [fresh, returns] = await Promise.all([loadItemFresh(admin, id), loadReturnsFresh(admin, id)]);
-    const detail = itemDetail(fresh!, returns);
+    const [fresh, returns, notes] = await Promise.all([loadItemFresh(admin, id), loadReturnsFresh(admin, id), loadNotesFresh(admin, id)]);
+    const detail = itemDetail(fresh!, returns, notes);
     return NextResponse.json({ ok: true, note, currently_at: detail.currently_at, item: detail });
   } catch (err) {
     console.error("PATCH /api/v1/items/[id] failed:", err);

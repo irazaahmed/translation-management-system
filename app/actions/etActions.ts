@@ -9,7 +9,8 @@ import {
   deleteEtItem,
   setEtStopped,
   setEtCloseout,
-  setEtItemComment,
+  addEtItemNote,
+  deleteEtItemNote,
   saveEtStages,
   patchEtStages,
   addEtReturn,
@@ -65,24 +66,57 @@ function revalidateWorkforce() {
   revalidatePath("/et/items");
 }
 
-/** Save a per-item comment / note (used by the Books section). */
-export async function saveEtItemCommentAction(
+/** Display name for note history: the staff member's name, else their email. */
+function authorOf(profile: { full_name: string | null; email: string | null }): string | null {
+  return profile.full_name?.trim() || profile.email || null;
+}
+
+/**
+ * Add a comment / note to an item (Books section). Each note is kept in the
+ * item's history with its date and author; older notes are never overwritten.
+ */
+export async function addEtItemNoteAction(
   itemId: string,
-  comment: string | null
+  body: string,
+  noteDate?: string | null
 ): Promise<{ error?: string; success?: boolean }> {
   if (!itemId) return { error: "Missing item id" };
+  const text = body?.trim() ?? "";
+  if (!text) return { error: "Write a comment first." };
+  if (text.length > 5000) return { error: "Comment is too long (max 5000 characters)." };
+  if (noteDate && !/^\d{4}-\d{2}-\d{2}$/.test(noteDate)) return { error: "Invalid date." };
   try {
-    await requireStaff();
-    await setEtItemComment(itemId, comment);
+    const profile = await requireStaff();
+    await addEtItemNote(itemId, { body: text, note_date: noteDate || null, author: authorOf(profile) });
     revalidatePath("/et/books");
     revalidateEt(itemId);
     return { success: true };
   } catch (error) {
-    console.error("Failed to save comment:", error);
+    console.error("Failed to add note:", error);
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return { error: "You don't have permission to edit this." };
     }
-    return { error: "Failed to save. Please try again." };
+    return { error: "Failed to save. Has migration 014 (et_item_notes) been run?" };
+  }
+}
+
+/** Remove one note from an item's history (e.g. added by mistake). */
+export async function deleteEtItemNoteAction(
+  itemId: string,
+  noteId: string
+): Promise<{ error?: string; success?: boolean }> {
+  try {
+    await requireStaff();
+    await deleteEtItemNote(noteId);
+    revalidatePath("/et/books");
+    revalidateEt(itemId);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete note:", error);
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return { error: "You don't have permission to edit this." };
+    }
+    return { error: "Failed to delete. Please try again." };
   }
 }
 
@@ -98,7 +132,7 @@ export async function createEtItemAction(
 
   let newId: string;
   try {
-    await requireStaff();
+    const profile = await requireStaff();
     newId = await createEtItem({
       title,
       type: (formData.get("type") as string)?.trim() || null,
@@ -112,7 +146,7 @@ export async function createEtItemAction(
       sender_name: (formData.get("sender_name") as string)?.trim() || null,
       sender_email: (formData.get("sender_email") as string)?.trim() || null,
       manual_translation: formData.get("manual_translation") === "on",
-    });
+    }, undefined, authorOf(profile));
     revalidateEt();
   } catch (error) {
     console.error("Failed to create ET item:", error);
@@ -137,7 +171,7 @@ export async function updateEtItemAction(
   const delivery_date = (formData.get("delivery_date") as string) || parseTitleDate(title) || null;
 
   try {
-    await requireStaff();
+    const profile = await requireStaff();
     await updateEtItem(itemId, {
       title,
       type: (formData.get("type") as string)?.trim() || null,
@@ -149,7 +183,8 @@ export async function updateEtItemAction(
       further_process: (formData.get("further_process") as string)?.trim() || null,
       sender_name: (formData.get("sender_name") as string)?.trim() || null,
       sender_email: (formData.get("sender_email") as string)?.trim() || null,
-    });
+    }, undefined, authorOf(profile));
+    revalidatePath("/et/books");
     revalidateEt(itemId);
   } catch (error) {
     console.error("Failed to update ET item:", error);

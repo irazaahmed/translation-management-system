@@ -395,3 +395,44 @@ export const getCachedEtAssignments = cache(async (): Promise<EtAssignment[]> =>
     return [];
   }
 });
+
+/** One entry of an item's comment / note history (et_item_notes, migration 014). */
+export interface EtItemNoteRow {
+  id: string;
+  item_id: string;
+  body: string;
+  note_date: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+// Every note across all items, newest first. Small table (one row per comment),
+// cached with the rest of the ET data and dropped on every ET change.
+const loadEtItemNotes = unstable_cache(
+  async (): Promise<EtItemNoteRow[]> => {
+    const { data, error } = await supabase
+      .from("et_item_notes")
+      .select("id, item_id, body, note_date, created_by, created_at")
+      .order("note_date", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data || []) as EtItemNoteRow[];
+  },
+  ["et-item-notes"],
+  ET_CACHE
+);
+
+/** Note history grouped by item id (newest first). Tolerant of migration 014 not being run yet. */
+export const getCachedEtItemNotesByItem = cache(async (): Promise<Map<string, EtItemNoteRow[]>> => {
+  const byItem = new Map<string, EtItemNoteRow[]>();
+  try {
+    for (const n of await loadEtItemNotes()) {
+      const arr = byItem.get(n.item_id);
+      if (arr) arr.push(n);
+      else byItem.set(n.item_id, [n]);
+    }
+  } catch (err) {
+    console.error("Failed to fetch ET item notes (has migration 014 been run?):", err);
+  }
+  return byItem;
+});

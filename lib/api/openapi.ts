@@ -79,7 +79,7 @@ const ITEM_FIELDS: Record<string, Schema> = {
   delivery_date: date("YYYY-MM-DD. If null/omitted it is read from a (dd-mm-yy) title."),
   word_count: int("Raw word count", { minimum: 0 }),
   priority: en(ITEM_PRIORITIES, undefined, true),
-  further_process: nstr("Notes / further process (max 5000)"),
+  further_process: nstr("Latest comment / note (max 5000). A new value is also added to the note history; prefer POST /items/{id}/notes to add a comment."),
   sender_name: nstr(),
   sender_email: nstr(undefined, { format: "email" }),
 };
@@ -220,6 +220,27 @@ export function buildOpenApiSpec(origin: string) {
         ),
       }),
       delete: op("deleteItem", "Delete the item", "items:delete", { parameters: [DELETE_NOTE] }),
+    },
+    "/items/{id}/notes": {
+      parameters: [pathId()],
+      get: op("listItemNotes", "Comment / note history of an item, newest first", "items:read"),
+      post: op("addItemNote", "Add a comment / note (earlier notes are kept; this becomes the latest comment)", "items:write", {
+        created: true,
+        requestBody: json(
+          obj(
+            {
+              body: str("The comment text (max 5000). Aliases: text, comment.", { maxLength: 5000 }),
+              date: date("Date the note is for (default today)"),
+              api_note: AUDIT,
+            },
+            ["body"]
+          )
+        ),
+      }),
+    },
+    "/items/{id}/notes/{noteId}": {
+      parameters: [pathId(), pathId("noteId")],
+      delete: op("deleteItemNote", "Remove one note from the history", "items:delete", { parameters: [DELETE_NOTE] }),
     },
     "/items/{id}/closeout": {
       parameters: [pathId()],

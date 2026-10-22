@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const id = await createEtItem(input, admin);
+    const id = await createEtItem(input, admin, `API · ${auth.key.name}`);
 
     // Same cache drop as the UI's server actions (revalidateEt in etActions.ts).
     revalidateTag(ET_CACHE_TAG, { expire: 0 });

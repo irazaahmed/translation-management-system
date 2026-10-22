@@ -172,7 +172,11 @@ function stageState(s: EtStage): string {
 }
 
 /** Full item detail: meta + pipeline + tracking history + computed state. */
-export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
+export function itemDetail(
+  item: EtItemWithStages,
+  returns: EtReturn[],
+  notes: { id: string; body: string; note_date: string; created_by: string | null; created_at: string }[] = []
+) {
   const stages = [...item.stages].sort((a, b) => a.seq - b.seq);
   const closeout = closeoutOf(item);
   const current = computeCurrentStep(stages, item.final_email_date, item.final_email_date_2, closeout);
@@ -254,6 +258,8 @@ export function itemDetail(item: EtItemWithStages, returns: EtReturn[]) {
       with_tr: s.with_tr,
     })),
     tracking,
+    // Comment / note history, newest first (further_process is the latest one).
+    notes: notes.map((n) => ({ id: n.id, body: n.body, date: n.note_date, by: n.created_by, created_at: n.created_at })),
     returns: returns.map((r) => ({
       id: r.id,
       stage: r.stage,
@@ -285,6 +291,17 @@ export async function loadItemFresh(
   if (!data || isQuranType((data as EtItem).type)) return null;
   const { et_stages, ...item } = data as EtItem & { et_stages: EtStage[] };
   return { ...(item as EtItem), stages: [...(et_stages || [])].sort((a, b) => a.seq - b.seq) };
+}
+
+export async function loadNotesFresh(client: SupabaseClient, itemId: string) {
+  const { data, error } = await client
+    .from("et_item_notes")
+    .select("id, item_id, body, note_date, created_by, created_at")
+    .eq("item_id", itemId)
+    .order("note_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) return []; // migration 014 not run yet
+  return data || [];
 }
 
 export async function loadReturnsFresh(client: SupabaseClient, itemId: string): Promise<EtReturn[]> {

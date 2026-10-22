@@ -52,7 +52,11 @@ export interface CreateEtItemInput {
  * Create an item plus its 8 (blank) pipeline stage rows. Returns the new id.
  * `client` is only passed by the API-key route (/api/v1/items).
  */
-export async function createEtItem(input: CreateEtItemInput, client?: SupabaseClient): Promise<string> {
+export async function createEtItem(
+  input: CreateEtItemInput,
+  client?: SupabaseClient,
+  author?: string | null
+): Promise<string> {
   const supabase = await getWriteClient(client);
 
   const { data: item, error } = await supabase
@@ -84,6 +88,10 @@ export async function createEtItem(input: CreateEtItemInput, client?: SupabaseCl
   const { error: stageError } = await supabase.from("et_stages").insert(stageRows);
   if (stageError) throw stageError;
 
+  // A note written at creation starts the item's note history.
+  const firstNote = input.further_process?.trim();
+  if (firstNote) await insertEtItemNote(supabase, itemId, firstNote, null, author ?? null);
+
   return itemId;
 }
 
@@ -94,16 +102,34 @@ export type UpdateEtItemInput = Partial<
   >
 >;
 
-export async function updateEtItem(itemId: string, input: UpdateEtItemInput, client?: SupabaseClient): Promise<void> {
+/**
+ * Update an item's form fields. When the notes text (further_process) changes
+ * to something new, that text is also added to the item's note history, so an
+ * edit never loses the previous comment. `author` is who made the change.
+ */
+export async function updateEtItem(
+  itemId: string,
+  input: UpdateEtItemInput,
+  client?: SupabaseClient,
+  author?: string | null
+): Promise<void> {
   const supabase = await getWriteClient(client);
+  let newNote: string | null = null;
+  if ("further_process" in input) {
+    const next = input.further_process?.trim() || null;
+    const { data: cur, error: curErr } = await supabase.from("et_items").select("further_process").eq("id", itemId).single();
+    if (curErr) throw curErr;
+    if (next && next !== (cur?.further_process?.trim() || null)) newNote = next;
+  }
   const { error } = await supabase.from("et_items").update(input).eq("id", itemId);
   if (error) throw error;
+  if (newNote) await insertEtItemNote(supabase, itemId, newNote, null, author ?? null);
 }
 
 /**
  * Save the free-text comment / note for an item. Used by the Books section
- * (and reused as the item's "Notes / Further process"). Reuses further_process
- * so no schema change is needed.
+ * (and reused as the item's "Notes / Further process"). Kept for callers that
+ * set the latest comment directly; new comments go through addEtItemNote().
  */
 export async function setEtItemComment(itemId: string, comment: string | null, client?: SupabaseClient): Promise<void> {
   const supabase = await getWriteClient(client);
@@ -112,6 +138,79 @@ export async function setEtItemComment(itemId: string, comment: string | null, c
     .update({ further_process: comment?.trim() || null })
     .eq("id", itemId);
   if (error) throw error;
+}
+
+// ============================================
+// Comment / note history (et_item_notes, migration 014)
+// ============================================
+
+export interface EtItemNote {
+  id: string;
+  item_id: string;
+  body: string;
+  /** The date the note is for (YYYY-MM-DD). */
+  note_date: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+async function insertEtItemNote(
+  supabase: SupabaseClient,
+  itemId: string,
+  body: string,
+  noteDate: string | null,
+  author: string | null
+): Promise<EtItemNote> {
+  const row: Record<string, unknown> = { item_id: itemId, body, created_by: author };
+  if (noteDate) row.note_date = noteDate;
+  const { data, error } = await supabase.from("et_item_notes").insert([row]).select("*").single();
+  if (error) throw error;
+  return data as EtItemNote;
+}
+
+/** Point further_process at the item's newest note (or clear it when none are left). */
+async function syncLatestNote(supabase: SupabaseClient, itemId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("et_item_notes")
+    .select("body")
+    .eq("item_id", itemId)
+    .order("note_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const { error: upErr } = await supabase
+    .from("et_items")
+    .update({ further_process: data?.[0]?.body ?? null })
+    .eq("id", itemId);
+  if (upErr) throw upErr;
+}
+
+/**
+ * Add a comment / note to an item's history. Older notes are never changed;
+ * the item's current comment (further_process) becomes the newest note.
+ */
+export async function addEtItemNote(
+  itemId: string,
+  input: { body: string; note_date?: string | null; author?: string | null },
+  client?: SupabaseClient
+): Promise<EtItemNote> {
+  const supabase = await getWriteClient(client);
+  const body = input.body.trim();
+  if (!body) throw new Error("EMPTY_NOTE");
+  const note = await insertEtItemNote(supabase, itemId, body, input.note_date ?? null, input.author ?? null);
+  await syncLatestNote(supabase, itemId);
+  return note;
+}
+
+/** Remove one note from an item's history (e.g. added by mistake). */
+export async function deleteEtItemNote(noteId: string, client?: SupabaseClient): Promise<void> {
+  const supabase = await getWriteClient(client);
+  const { data: note, error: selErr } = await supabase.from("et_item_notes").select("item_id").eq("id", noteId).maybeSingle();
+  if (selErr) throw selErr;
+  if (!note) return;
+  const { error } = await supabase.from("et_item_notes").delete().eq("id", noteId);
+  if (error) throw error;
+  await syncLatestNote(supabase, note.item_id as string);
 }
 
 export async function deleteEtItem(itemId: string, client?: SupabaseClient): Promise<void> {
