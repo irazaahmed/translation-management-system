@@ -114,3 +114,13 @@ Fixed:
 
 Production tests (2026-10-20): close-out 21/21, full 48/48, English 30/30, Quranic 41/41.
 Dummy data only, all cleaned up.
+
+## Update 2026-10-22 — comment / note history (commits `d45f271`, `1d4a5d6`)
+
+- Migration 014 (applied) adds `et_item_notes`. Every comment on an item is kept with its date
+  and author, and the 76 existing comments were copied in as "Earlier comment".
+- The Books card shows the full history, newest first, with "Add note" (dated) and delete.
+- API: `GET/POST /items/{id}/notes` and `DELETE /items/{id}/notes/{noteId}` (items:delete).
+  Item detail includes `notes`. Changing `further_process` also adds to the history.
+- Production tests: notes 12/12. Regression: close-out 21/21, full 48/48, English 30/30,
+  Quranic 41/41.
