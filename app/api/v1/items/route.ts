@@ -8,6 +8,7 @@ import {
   itemDetail,
   listItem,
   loadItemFresh,
+  loadNotesFresh,
   parseCreateItem,
 } from "@/lib/api/items";
 import { getCachedEtItemRows, type EtItemRow } from "@/lib/etData";
@@ -128,7 +129,8 @@ export async function POST(request: Request) {
     if (auditError) console.error("api_audit_log insert failed:", auditError.message);
 
     const item = await loadItemFresh(admin, id);
-    return NextResponse.json({ ok: true, note, item: itemDetail(item!, []) }, { status: 201 });
+    const notes = await loadNotesFresh(admin, id);
+    return NextResponse.json({ ok: true, note, item: itemDetail(item!, [], notes) }, { status: 201 });
   } catch (err) {
     console.error("POST /api/v1/items failed:", err);
     return apiError(500, "Failed to create the item.");
