@@ -103,8 +103,8 @@ export default async function ProgressPage() {
         </h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           Para-by-para progress of every in-progress language through its stages —
-          Translation → Comparison → Formation → Tafteesh → Designing → Final
-          Proof Reading. (Braille follows its own pipeline.)
+          Translation → Formation → Tafteesh → Designing → Final Proof Reading.
+          (Braille follows its own pipeline.)
         </p>
       </div>
 

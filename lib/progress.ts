@@ -45,18 +45,27 @@ const STAGE_REGISTRY: Record<StageKey, StageMeta> = {
   final_proof_reading:  { key: "final_proof_reading",  label: "Final Proof Reading",  bar: "bg-rose-500",    text: "text-rose-600 dark:text-rose-400",       dot: "bg-rose-500" },
 };
 
-/** Every stage key that exists across all pipelines. */
-export const ALL_STAGE_KEYS: StageKey[] = Object.keys(STAGE_REGISTRY) as StageKey[];
+/**
+ * Stages no longer in any pipeline. Comparison was merged into Translation:
+ * whatever is translated counts as compared too, so it is no longer tracked as
+ * its own step. Old comparison rows stay in para_progress untouched (history),
+ * they just aren't shown or counted any more.
+ */
+export const RETIRED_STAGE_KEYS: StageKey[] = ["comparison"];
+
+/** Every stage key used by a current pipeline. */
+export const ALL_STAGE_KEYS: StageKey[] = (Object.keys(STAGE_REGISTRY) as StageKey[]).filter(
+  (k) => !RETIRED_STAGE_KEYS.includes(k)
+);
 
 /**
  * Standard pipeline (all languages except Braille), in order.
- * Translation and Comparison are the "first-most" stages: Comparison can't be
- * ahead of Translation, and no other stage can be ahead of either of them.
+ * Translation is the "first-most" stage: no other stage can be ahead of it.
+ * (Comparison used to be a separate second step; it is now part of Translation.)
  * The remaining stages have no fixed order and may move back and forth.
  */
 export const DEFAULT_STAGE_KEYS: StageKey[] = [
   "translation",
-  "comparison",
   "formation",
   "tafteesh",
   "designing",
@@ -66,12 +75,11 @@ export const DEFAULT_STAGE_KEYS: StageKey[] = [
 /**
  * Braille has its own pipeline — no Formation/Designing, but an extra
  * "Convert into Braille" step:
- *   Translation (for Braille) → Comparison → Convert into Braille
- *   → Tafteesh → Final Proof Reading
+ *   Translation (for Braille) → Convert into Braille → Tafteesh
+ *   → Final Proof Reading
  */
 export const BRAILLE_STAGE_KEYS: StageKey[] = [
   "translation",
-  "comparison",
   "convert_into_braille",
   "tafteesh",
   "final_proof_reading",

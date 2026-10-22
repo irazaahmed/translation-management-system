@@ -38,8 +38,8 @@ export interface BookNote {
   by: string | null;
 }
 
-/** Notes shown before "Show all". */
-const NOTES_PREVIEW = 3;
+/** Only the latest note shows until "Load more" is clicked. */
+const NOTES_PREVIEW = 1;
 
 /** Today as YYYY-MM-DD in the viewer's own time zone. */
 function todayLocal(): string {
@@ -202,7 +202,7 @@ function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
         {notes.length === 0
           ? !canWrite && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">—</p>
           : (
-            <ul className="mt-2 space-y-2">
+            <ul className={`mt-2 space-y-2 ${showAll ? "max-h-64 overflow-y-auto pr-1" : ""}`}>
               {visible.map((n) =>
                 n.id === "legacy" ? (
                   <li key={n.id} className="border-l-2 border-emerald-200 dark:border-emerald-800 pl-3">
@@ -220,7 +220,9 @@ function BookCard({ book, canWrite }: { book: BookRow; canWrite: boolean }) {
             onClick={() => setShowAll((v) => !v)}
             className="mt-2 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
           >
-            {showAll ? "Show fewer" : `Show all ${notes.length} notes`}
+            {showAll
+              ? "Show less"
+              : `Load more (${notes.length - NOTES_PREVIEW} older note${notes.length - NOTES_PREVIEW === 1 ? "" : "s"})`}
           </button>
         )}
       </div>

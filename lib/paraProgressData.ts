@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabaseClient";
-import { QURAN_CACHE_TAG, buildParaCells, getStagesForLanguage, type ParaCell, type ParaRow, type StageKey } from "@/lib/progress";
+import { QURAN_CACHE_TAG, RETIRED_STAGE_KEYS, buildParaCells, getStagesForLanguage, type ParaCell, type ParaRow, type StageKey } from "@/lib/progress";
 
 // ============================================
 // Quran para-progress cached data layer (mirrors lib/etData.ts)
@@ -52,7 +52,9 @@ const loadActiveParaPersonIds = unstable_cache(
       .from("para_progress")
       .select("person_id")
       .not("started_at", "is", null)
-      .is("finished_at", null);
+      .is("finished_at", null)
+      // Retired stages (Comparison, merged into Translation) are no longer worked on.
+      .not("stage", "in", `(${RETIRED_STAGE_KEYS.join(",")})`);
     if (error) throw error;
     return data || [];
   },
@@ -228,7 +230,8 @@ export const getCachedParaActivity = cache(async (): Promise<ParaActivityRow[]> 
   try {
     const [rows, languages] = await Promise.all([loadAllParaProgress(), loadLanguageMeta()]);
     const metaById = new Map(languages.map((l) => [l.id, l]));
-    return rows.map((r) => {
+    // Old rows of retired stages (Comparison) stay in the DB but aren't reported.
+    return rows.filter((r) => !RETIRED_STAGE_KEYS.includes(r.stage)).map((r) => {
       const meta = metaById.get(r.language_id);
       return {
         ...toParaRow(r),

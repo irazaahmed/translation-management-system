@@ -45,8 +45,9 @@ function buildSystemPrompt(): string {
 Today's date is ${today}.
 
 Each Quranic project has languages; each language has 30 paras moving through stages.
-Stage keys: translation, comparison, formation, convert_into_braille, tafteesh, designing, final_proof_reading.
-Standard languages use translation, comparison, formation, tafteesh, designing, final_proof_reading. Braille languages use translation, comparison, convert_into_braille, tafteesh, final_proof_reading.
+Stage keys: translation, formation, convert_into_braille, tafteesh, designing, final_proof_reading.
+Standard languages use translation, formation, tafteesh, designing, final_proof_reading. Braille languages use translation, convert_into_braille, tafteesh, final_proof_reading.
+Comparison is no longer a separate step: it is part of Translation (whatever is translated counts as compared).
 
 English Translation module: each work item flows through TR → CM → FO (Formation) → ED → NR → ST → FPR (Books keep TR → IF → CM → ED → NR → ST → FF → FPR → RTP; some older items still show IF/FF). Most items are AI-translated (translation_mode "ai"): Editing is combined into TR ("Translation & Editing") and ED is skipped; only "manual" items have a separate ED step. After the final email an item is "link_missing" (Link / Remarks tab) until its online/SharePoint link or a remark is recorded; then it is completed. The "current step / current holder" is whoever has not yet returned their stage. This is SEPARATE from Quranic languages.
 

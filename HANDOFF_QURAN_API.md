@@ -36,12 +36,13 @@ logic from `lib/progress.ts` instead of defining it inline.
 
 ## Things the API consumer (Zaki) must know
 
-1. **Pipelines differ.** Standard languages have 6 stages (translation, comparison, formation,
-   tafteesh, designing, final_proof_reading). Braille languages (name contains "braille") have
-   5: no formation or designing, plus `convert_into_braille`. Get them from `/quran/meta`.
-2. **Ordering rule.** Comparison can't be ahead of translation, and no other stage can be ahead
-   of either of them, counted in paras finished. A PATCH that breaks it → `400` with the reason.
-   Update translation before comparison, and both before the later stages.
+1. **Pipelines differ.** Standard languages have 5 stages (translation, formation, tafteesh,
+   designing, final_proof_reading). Braille languages (name contains "braille") have 4:
+   translation, `convert_into_braille`, tafteesh, final_proof_reading. Get them from
+   `/quran/meta`. **Comparison was merged into Translation on 2026-10-22**: it is no longer
+   a step, and whatever is translated counts as compared.
+2. **Ordering rule.** No stage can be ahead of translation, counted in paras finished. A PATCH
+   that breaks it → `400` with the reason. Update translation before the later stages.
 3. **Updating progress.** Use `{"stage": "...", "paras_finished": N}`, the same as typing "Para
    reached = N" and pressing Save in the UI. Lowering N clears those paras' dates, so the API
    requires `"allow_decrease": true` for that. Use `{"stage", "para", "person_id",

@@ -112,7 +112,7 @@ export const functionDeclarations = [
           type: "string",
           enum: ALL_STAGE_KEYS as unknown as string[],
           description:
-            "Stage key. One of: translation, comparison, formation, convert_into_braille, tafteesh, designing, final_proof_reading. Use convert_into_braille only for Braille languages.",
+            "Stage key. One of: translation, formation, convert_into_braille, tafteesh, designing, final_proof_reading. Use convert_into_braille only for Braille languages. Comparison is part of translation (no separate step).",
         },
         para: {
           type: "integer",

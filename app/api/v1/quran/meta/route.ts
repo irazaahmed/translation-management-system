@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       },
       braille_rule: 'A language uses the Braille pipeline when its name contains "braille" (case-insensitive).',
       ordering_rule:
-        "Comparison can't be ahead of Translation, and no other stage can be ahead of either of them (by paras finished).",
+        "No stage can be ahead of Translation (by paras finished). Comparison is part of Translation, not a separate step.",
       work_statuses: WORK_STATUSES,
       priorities: PRIORITIES,
       weekdays: WEEKDAYS,

@@ -475,26 +475,17 @@ export function planLanguagePatch(
   }
 
   // ---- ordering rule (lib/progress.ts) ----
-  // Comparison can't be ahead of Translation, and no other stage can be ahead
-  // of either of them. Only checked where this request touches the stages
-  // involved, so an old inconsistency elsewhere doesn't block unrelated edits.
+  // No stage can be ahead of Translation (Comparison is part of Translation
+  // now). Only checked where this request touches the stages involved, so an
+  // old inconsistency elsewhere doesn't block unrelated edits.
   if (touched.size > 0) {
     const count = (k: StageKey) => finishedCount(working.get(k) ?? []);
     const t = count("translation");
-    const c = count("comparison");
-    const firstTouched = touched.has("translation") || touched.has("comparison");
-    if (firstTouched && c > t) {
-      problems.push(`Comparison (${c} paras) can't be ahead of Translation (${t} paras).`);
-    }
     for (const k of stageKeys) {
-      if (k === "translation" || k === "comparison") continue;
-      if (!(firstTouched || touched.has(k))) continue;
+      if (k === "translation") continue;
+      if (!(touched.has("translation") || touched.has(k))) continue;
       const n = count(k);
-      if (n > Math.min(t, c)) {
-        problems.push(
-          `${k} (${n} paras) can't be ahead of Translation (${t}) or Comparison (${c}).`
-        );
-      }
+      if (n > t) problems.push(`${k} (${n} paras) can't be ahead of Translation (${t} paras).`);
     }
   }
 

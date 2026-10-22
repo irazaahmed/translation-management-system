@@ -598,13 +598,17 @@ Base: `https://tms-dawateislami.vercel.app/api/v1/quran`. Scopes: `quran:read` f
 
   | Kind | Stages, in order |
   |------|------------------|
-  | standard | translation → comparison → formation → tafteesh → designing → final_proof_reading |
-  | Braille | translation ("Translation (for Braille)") → comparison → convert_into_braille → tafteesh → final_proof_reading |
+  | standard | translation → formation → tafteesh → designing → final_proof_reading |
+  | Braille | translation ("Translation (for Braille)") → convert_into_braille → tafteesh → final_proof_reading |
+
+  **Comparison is part of Translation** (since 2026-10-22). It is no longer a separate step:
+  whatever is translated counts as compared. Old comparison rows stay in the database but
+  aren't shown, counted or accepted (`"stage": "comparison"` → `400`).
 
   A language uses the Braille pipeline when its **name contains "braille"** (case-insensitive),
   the same check the UI uses.
-- **Ordering rule** (from `lib/progress.ts`), counted in paras finished: comparison can't be ahead
-  of translation, and no other stage can be ahead of either of them. The API enforces this on
+- **Ordering rule** (from `lib/progress.ts`), counted in paras finished: no stage can be ahead of
+  translation. The API enforces this on
   every para write. It only checks the stages a request touches, so an old inconsistency
   elsewhere won't block an unrelated edit.
 - `pipeline_percent` = the sum of paras finished across the language's stages ÷ (stages × 30),
@@ -744,7 +748,7 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/quran/languages/$LA
         "assigned_day": "Monday",
         "para_progress": [
           { "stage": "translation", "paras_finished": 12 },
-          { "stage": "comparison", "para": 9, "person_id": "uuid", "started_at": "2026-10-06" }
+          { "stage": "formation", "para": 9, "person_id": "uuid", "started_at": "2026-10-06" }
         ],
         "note": "Weekly update from the language team"
       }'
@@ -755,7 +759,7 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/quran/languages/$LA
   "ok": true,
   "applied": {
     "meta": { "responsible_person": "…", "assigned_day": "Monday" },
-    "para_counts": { "translation": { "before": 10, "after": 12 }, "comparison": { "before": 8, "after": 8 } }
+    "para_counts": { "translation": { "before": 10, "after": 12 }, "formation": { "before": 8, "after": 8 } }
   },
   "note": "Weekly update from the language team",
   "language": { "...": "same shape as GET /quran/languages/{id}, read fresh" }
@@ -765,7 +769,7 @@ curl -s -X PATCH "https://tms-dawateislami.vercel.app/api/v1/quran/languages/$LA
 An ordering violation looks like this:
 
 ```json
-{ "error": "Invalid request.", "details": ["formation (8 paras) can't be ahead of Translation (10) or Comparison (5)."] }
+{ "error": "Invalid request.", "details": ["formation (12 paras) can't be ahead of Translation (10 paras)."] }
 ```
 
 ## `GET /quran/meetings`
